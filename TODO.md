@@ -101,7 +101,8 @@ jobs:
 
 # Done
 
-1. Public repo created and pushed — https://github.com/jaal/days-with-commits — including
+1. Public repo created and pushed — https://github.com/jaal/lenny (renamed from
+   days-with-commits, 2026-07-14) — including
    `keep-warm.yml` (starts pinging once the Render service exists; harmless failures until
    then). (done: 2026-07-14)
 1. Free-hosting plan locked (2026-07-14): Render free web service kept warm by a GitHub
