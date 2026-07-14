@@ -25,7 +25,8 @@ idea), paid tiers, other meme templates, other data sources.
   (github-contributions-api.jogruber.de, no GitHub token), computes streak / windowed
   count, draws the number onto `assets/lenny.png` with Pillow.
 - `app.py` — Flask: `/` landing page, `/<username>[.png]` image endpoint; per-user
-  per-UTC-day in-process cache; `Cache-Control: max-age=3600` so Camo/browsers refresh hourly.
+  per-UTC-day in-process cache; `Cache-Control: max-age` 6 h clamped to UTC midnight;
+  daily bandwidth budget (full → half-size → 429 across `BW_SOFT/HARD_CAP_MB`).
 - `render.yaml` — Render Blueprint: free plan, `gunicorn app:app`.
 
 ## Free hosting: Render + GitHub, $0/month
@@ -92,10 +93,14 @@ jobs:
 1. ⬜ Wire up **olekwrites.com/lenny** (decided 2026-07-14): deploy `cloudflare/worker.js`
    as a Worker + add route `olekwrites.com/lenny*` (steps in the file). Bonus: Cloudflare
    edge-caches the images for 1 h, so most viewers never hit Render — softens cold starts.
-1. ⬜ Embed my own counter (profile README + olekwrites.com) — `/jaal?from=2026-05-27` or
-   plain streak.
-1. ⬜ Rate limiting / abuse guard if it ever gets traffic (per-IP throttle; jogruber's API
-   is a free community service — be polite to it; also watch Render's 100 GB/mo bandwidth cap).
+1. ⬜ Embed my own counter (profile README + olekwrites.com) — Lenny badge
+   (`/lenny/jaal?from=2026-07-08`) added to the 100-days-of-code post locally; still to do:
+   push/deploy olekwrites and add to profile README. (updated: 2026-07-14)
+1. ⬜ Per-IP throttle if traffic ever warrants it (jogruber's API is a free community
+   service — be polite); the bandwidth side is now covered by the daily budget guard.
+   (updated: 2026-07-14)
+1. ⬜ Confirm the redesigned landing page + bandwidth guard are live on
+   olekwrites.com/lenny after Render auto-deploys the push. (added: 2026-07-14)
 1. ⬜ Nice-to-have: OG tags on the landing page so pasting the site link unfurls with a
    Lenny preview.
 
@@ -105,6 +110,13 @@ jobs:
 
 # Done
 
+1. Landing page restyled to match olekwrites.com (grid paper, Chivo, rainbow links,
+   section cards; loads `jaal` by default; cross-linked with the 100-days-of-code post;
+   dead Frinkiac link replaced). (done: 2026-07-14)
+1. Bandwidth safety: PNG-8 badges (~300 KB → ~105 KB), `max-age` 6 h clamped to UTC
+   midnight, LRU 512 → 2048, and a daily budget guard — full-size under 2 GB/day,
+   half-size to 3 GB/day, then 429 until midnight; caps via `BW_SOFT/HARD_CAP_MB`.
+   Worst case ~93 GB/mo, under Render's 100 GB cap. (done: 2026-07-14)
 1. **Shipped: https://olekwrites.com/lenny is live.** Render service deployed
    (days-with-commits.onrender.com) and the `lenny` Worker + `olekwrites.com/lenny*` route
    created via the Cloudflare API. Verified end-to-end: landing page, `/lenny/jaal` (49!),

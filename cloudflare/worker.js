@@ -21,6 +21,9 @@ export default {
     let path = url.pathname.slice(PREFIX.length) || "/";
     if (!path.startsWith("/")) path = "/" + path;
     const upstream = new Request(UPSTREAM + path + url.search, request);
-    return fetch(upstream, { cf: { cacheEverything: true } });
+    // Edge-cache only the images; caching the landing page HTML (zone
+    // default 4 h) kept serving stale pages after deploys.
+    const isImage = path !== "/";
+    return fetch(upstream, { cf: { cacheEverything: isImage } });
   },
 };
