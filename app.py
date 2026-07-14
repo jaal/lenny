@@ -32,9 +32,11 @@ _lock = threading.Lock()
 # Under the soft cap images are served full-size; between soft and hard cap
 # half-size; past the hard cap 429 until UTC midnight, when the budget —
 # like the count itself — resets. In-process, so a restart forgets the
-# day's spend; the caps leave margin for that.
-BW_SOFT_CAP = int(float(os.environ.get("BW_SOFT_CAP_MB", "2000")) * 1e6)
-BW_HARD_CAP = int(float(os.environ.get("BW_HARD_CAP_MB", "3000")) * 1e6)
+# day's spend. Caps are deliberately ~10x below the Render allowance
+# (~9 GB/mo worst case): still ~2000 full-size badge views/day, with
+# room to raise via env vars if real traffic ever hits the guard.
+BW_SOFT_CAP = int(float(os.environ.get("BW_SOFT_CAP_MB", "200")) * 1e6)
+BW_HARD_CAP = int(float(os.environ.get("BW_HARD_CAP_MB", "300")) * 1e6)
 _bw_day: dt.date | None = None
 _bw_bytes = 0
 

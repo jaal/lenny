@@ -20,11 +20,14 @@
   6 h, shortened near UTC midnight so caches expire right when the count can
   actually change.
 - Bandwidth guard: a per-UTC-day budget protects the Render free tier's
-  100 GB/month. Under the soft cap (`BW_SOFT_CAP_MB`, default 2000) images
-  are full-size; between soft and hard cap (`BW_HARD_CAP_MB`, default 3000)
+  100 GB/month. Under the soft cap (`BW_SOFT_CAP_MB`, default 200) images
+  are full-size; between soft and hard cap (`BW_HARD_CAP_MB`, default 300)
   they're served half-size; past the hard cap requests get 429 + Retry-After
-  until midnight. The counter is in-process, so a restart forgets the day's
-  spend — the caps leave margin for that (3 GB/day ≈ 93 GB/month worst case).
+  until midnight. The defaults are deliberately ~10x below the allowance
+  (300 MB/day ≈ 9 GB/month worst case, yet still ~2000 full-size badge
+  views/day) — raise the env vars if real traffic ever hits the guard. The
+  counter is in-process, so a restart forgets the day's spend; the margin
+  covers that too.
 
 ## Run locally
 ```sh
