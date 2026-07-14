@@ -156,5 +156,18 @@ def render(number: int, since: dt.date | None = None) -> bytes:
                        line, font)
 
     buf = io.BytesIO()
-    im.save(buf, format="PNG", optimize=True)
+    # Palette PNG-8: ~4x smaller than truecolor, no visible loss on this art.
+    im.quantize(colors=256, method=Image.Quantize.MEDIANCUT).save(
+        buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def shrink(png: bytes, scale: float = 0.5) -> bytes:
+    """Re-encode a rendered PNG at reduced size (bandwidth-saver mode)."""
+    im = Image.open(io.BytesIO(png)).convert("RGB")
+    im = im.resize((round(im.width * scale), round(im.height * scale)),
+                   Image.LANCZOS)
+    buf = io.BytesIO()
+    im.quantize(colors=128, method=Image.Quantize.MEDIANCUT).save(
+        buf, format="PNG", optimize=True)
     return buf.getvalue()
