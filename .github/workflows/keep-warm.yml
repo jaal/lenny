@@ -1,0 +1,20 @@
+name: keep-warm
+
+# Render's free plan spins the service down after ~15 min idle; a cold start
+# (~30 s) exceeds GitHub Camo's ~4 s image timeout. Pinging every 10 min keeps
+# it warm. Unlimited Actions minutes on public repos make this $0.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      # --max-time 90 on purpose: the pinger must tolerate a cold start
+      # so it can end one.
+      - run: |
+          curl -fsS -o /dev/null --max-time 90 https://days-with-commits.onrender.com/
+          curl -fsS -o /dev/null --max-time 90 "https://days-with-commits.onrender.com/jaal?from=2026-05-27"

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Days without missing a commit</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 680px; margin: 0 auto; padding: 2rem 1rem 4rem;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  .sub { opacity: .75; margin-top: 0; }
+  form { display: flex; gap: .5rem; margin: 1.5rem 0 1rem; }
+  input[type=text] {
+    flex: 1; padding: .6rem .8rem; font-size: 1rem;
+    border: 1px solid #8884; border-radius: 8px; background: transparent;
+  }
+  button {
+    padding: .6rem 1.1rem; font-size: 1rem; border: 0; border-radius: 8px;
+    background: #2da44e; color: #fff; cursor: pointer;
+  }
+  button:hover { background: #2c974b; }
+  img.preview { max-width: 100%; border-radius: 8px; display: none; }
+  .snippets { display: none; margin-top: 1rem; }
+  .snippet { margin-bottom: .75rem; }
+  .snippet label { font-size: .8rem; text-transform: uppercase; opacity: .7; }
+  .snippet code {
+    display: block; padding: .5rem .7rem; margin-top: .2rem;
+    background: #8881; border-radius: 6px; font-size: .85rem;
+    overflow-x: auto; white-space: nowrap; cursor: pointer;
+  }
+  .hint { font-size: .85rem; opacity: .7; }
+  .err { color: #d1242f; display: none; }
+</style>
+</head>
+<body>
+  <h1>🏭 Days without missing a commit</h1>
+  <p class="sub">Your GitHub commit streak, on the Lenny sign. Updates itself every day.</p>
+
+  <form id="f">
+    <input type="text" id="u" placeholder="github.com/yourname or just yourname"
+           autocomplete="off" autofocus>
+    <button type="submit">Show me</button>
+  </form>
+  <p class="err" id="err">Couldn't find that GitHub user.</p>
+
+  <img class="preview" id="img" alt="days without missing a commit">
+
+  <div class="snippets" id="sn">
+    <div class="snippet"><label>Image URL (always current)</label>
+      <code id="c-url" title="click to copy"></code></div>
+    <div class="snippet"><label>Markdown (README)</label>
+      <code id="c-md" title="click to copy"></code></div>
+    <div class="snippet"><label>HTML</label>
+      <code id="c-html" title="click to copy"></code></div>
+    <p class="hint">Add <code style="display:inline;padding:.1em .3em">?from=YYYY-MM-DD</code>
+      to count days with ≥ 1 commit since a fixed date instead of the streak.</p>
+  </div>
+
+<script>
+const f = document.getElementById('f'), u = document.getElementById('u'),
+      img = document.getElementById('img'), sn = document.getElementById('sn'),
+      err = document.getElementById('err');
+
+f.addEventListener('submit', e => {
+  e.preventDefault();
+  const m = u.value.trim().match(/(?:github\.com\/)?@?([A-Za-z0-9][A-Za-z0-9-]{0,38})\/?\s*$/);
+  if (!m) return;
+  // Works at the root and behind a proxy prefix (olekwrites.com/lenny).
+  const base = location.pathname.replace(/\/+$/, '');
+  const name = m[1], url = location.origin + base + '/' + name;
+  err.style.display = 'none';
+  img.style.display = sn.style.display = 'none';
+  img.onload = () => {
+    img.style.display = 'block';
+    sn.style.display = 'block';
+    document.getElementById('c-url').textContent = url;
+    document.getElementById('c-md').textContent =
+      `![days without missing a commit](${url})`;
+    document.getElementById('c-html').textContent =
+      `<img src="${url}" alt="days without missing a commit">`;
+  };
+  img.onerror = () => { err.style.display = 'block'; };
+  img.src = url + '?t=' + Date.now();  // bust browser cache on retry
+});
+
+document.querySelectorAll('.snippet code').forEach(c =>
+  c.addEventListener('click', () => navigator.clipboard.writeText(c.textContent)));
+</script>
+</body>
+</html>
