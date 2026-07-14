@@ -93,9 +93,9 @@ jobs:
 1. ⬜ Redeploy `cloudflare/worker.js` (needs the Cloudflare API token): edge cache is now
    image-only, so landing-page deploys show up immediately instead of after the 4 h zone
    TTL. Until redeployed, stale HTML persists. (added: 2026-07-14)
-1. ⬜ Embed my own counter (profile README + olekwrites.com) — Lenny badge
-   (`/lenny/jaal?from=2026-07-08`) added to the 100-days-of-code post locally; still to do:
-   push/deploy olekwrites and add to profile README. (updated: 2026-07-14)
+1. ⬜ Embed my own counter — olekwrites.com done (badge in the 100-days-of-code post +
+   `/lenny` index note, both pushed 2026-07-14); still to do: profile README.
+   (updated: 2026-07-14)
 1. ⬜ Per-IP throttle if traffic ever warrants it (jogruber's API is a free community
    service — be polite); the bandwidth side is now covered by the daily budget guard.
    (updated: 2026-07-14)
