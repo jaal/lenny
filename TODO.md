@@ -109,10 +109,17 @@ jobs:
 
 # Bugs
 
-(none yet)
+1. ⬜ Unbounded `?from`: `?from=0001-01-01` makes `days_with_commits_since` loop over
+   ~2000 calendar years — ~2000 sequential fetches to jogruber's free API per uncached
+   request (slow-request DoS for us, abusive to them, and each unique date is a fresh
+   cache key). Clamp/reject `from` earlier than 2008-01-01 (GitHub launch).
+   (added: 2026-07-14, found in security review)
 
 # Done
 
+1. MIT license added (LICENSE + README section) with a carve-out: `assets/lenny.png` is
+   Simpsons fan art excluded from the license; DejaVu font keeps its own license. The
+   public repo is now properly open source. (done: 2026-07-14)
 1. Landing page restyled to match olekwrites.com (grid paper, Chivo, rainbow links,
    section cards; loads `jaal` by default; cross-linked with the 100-days-of-code post;
    dead Frinkiac link replaced). (done: 2026-07-14)
