@@ -48,7 +48,7 @@ def _fetch_year(user: str, year: int) -> dict[str, int]:
     """Return {iso-date: contribution count} for one calendar year."""
     req = urllib.request.Request(
         CONTRIB_API.format(user=user, year=year),
-        headers={"User-Agent": "days-with-commits (github.com/jaal)"},
+        headers={"User-Agent": "lenny (github.com/jaal/lenny)"},
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as r:

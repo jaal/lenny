@@ -1,4 +1,4 @@
-# days-with-commits
+# lenny
 
 **Days without missing a commit** — your GitHub commit streak on the Lenny
 ("0 days without an accident") Simpsons sign, as a live image anyone can embed.

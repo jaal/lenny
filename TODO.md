@@ -1,8 +1,8 @@
-# days-with-commits — plan & TODO
+# lenny — plan & TODO
 
 ## Goal
 
-Ship **days-with-commits** as a public, always-on service at **$0/month**: anyone pastes a
+Ship **lenny** (né days-with-commits) as a public, always-on service at **$0/month**: anyone pastes a
 GitHub username and gets a daily-fresh meme image — their commit streak on the Lenny
 "0 days without an accident" Simpsons sign — with a stable embed URL per user
 (`<domain>/<githubname>`, `?from=YYYY-MM-DD` for the fixed-start-date variant).
@@ -106,6 +106,11 @@ jobs:
    bandwidth guard are live on olekwrites.com/lenny. (added: 2026-07-14)
 1. ⬜ Nice-to-have: OG tags on the landing page so pasting the site link unfurls with a
    Lenny preview.
+1. ⬜ Nice-to-have: rename the Render service to `lenny` too. Deliberately not done in
+   code: the service name sets the `days-with-commits.onrender.com` subdomain, so a rename
+   changes the URL and breaks `worker.js` UPSTREAM + `keep-warm.yml` until both are
+   updated in the same sitting (and a Blueprint name change can create a second service).
+   Do it dashboard-first, then update the two files + redeploy the worker. (added: 2026-07-14)
 
 # Bugs
 
