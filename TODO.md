@@ -78,10 +78,11 @@ jobs:
 
 # Tasks
 
-1. ⬜ Create the GitHub repo — **public** (required for free unlimited Actions) — and push.
 1. ⬜ Deploy on Render (Blueprint from `render.yaml`), verify `/<name>` from the public URL.
-1. ⬜ Add `.github/workflows/keep-warm.yml` (sketch above); after a day, confirm in the
-   Render dashboard that the service never slept and response times stay warm (~ms, not ~30 s).
+   If Render assigns a name other than `days-with-commits.onrender.com`, update the URLs in
+   `keep-warm.yml` and `cloudflare/worker.js`.
+1. ⬜ After a day of keep-warm pings, confirm in the Render dashboard that the service never
+   slept and response times stay warm (~ms, not ~30 s).
 1. ⬜ Verify the embed end-to-end: put the image in a test README, confirm Camo renders it
    and refreshes within ~1 h of a new commit day.
 1. ⬜ Wire up **olekwrites.com/lenny** (decided 2026-07-14): deploy `cloudflare/worker.js`
@@ -100,6 +101,9 @@ jobs:
 
 # Done
 
+1. Public repo created and pushed — https://github.com/jaal/days-with-commits — including
+   `keep-warm.yml` (starts pinging once the Render service exists; harmless failures until
+   then). (done: 2026-07-14)
 1. Free-hosting plan locked (2026-07-14): Render free web service kept warm by a GitHub
    Actions 10-min ping from the (public) repo — replaces the "starter plan ~$7/mo vs.
    pinger" open decision with the $0 answer.
