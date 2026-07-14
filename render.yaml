@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: days-with-commits
+    name: lenny-days-without
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
