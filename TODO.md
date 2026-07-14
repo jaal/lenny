@@ -99,18 +99,10 @@ jobs:
 1. ⬜ Per-IP throttle if traffic ever warrants it (jogruber's API is a free community
    service — be polite); the bandwidth side is now covered by the daily budget guard.
    (updated: 2026-07-14)
-1. ⬜ **Render auto-deploy is not firing** — pushes 239d159/e127154 sat ~1 h with the old
-   code still serving (verified: origin badge still 299 KB truecolor). Likely the GitHub →
-   Render hookup broke with the repo rename (days-with-commits → lenny). Fix in the Render
-   dashboard: reconnect the repo / Manual Deploy, then confirm the redesigned landing page +
-   bandwidth guard are live on olekwrites.com/lenny. (added: 2026-07-14)
+1. ⬜ Confirm deploy 2c05e63 went live (was building 2026-07-14 ~19:12 UTC), then spot-check
+   the redesigned landing page + bandwidth guard on olekwrites.com/lenny. (added: 2026-07-14)
 1. ⬜ Nice-to-have: OG tags on the landing page so pasting the site link unfurls with a
    Lenny preview.
-1. ⬜ Nice-to-have: rename the Render service to `lenny` too. Deliberately not done in
-   code: the service name sets the `days-with-commits.onrender.com` subdomain, so a rename
-   changes the URL and breaks `worker.js` UPSTREAM + `keep-warm.yml` until both are
-   updated in the same sitting (and a Blueprint name change can create a second service).
-   Do it dashboard-first, then update the two files + redeploy the worker. (added: 2026-07-14)
 
 # Bugs
 
@@ -118,6 +110,16 @@ jobs:
 
 # Done
 
+1. **Render auto-deploy fixed** — root cause: the repo rename dropped `lenny` from the
+   Render GitHub App's repository access (Render's source picker showed "No results for
+   lenny"). Fixed by re-granting access at github.com/settings/installations and
+   reconnecting the source in the Render dashboard. Verified end-to-end: push 2c05e63
+   triggered "New commit via Auto-Deploy". (done: 2026-07-14)
+1. Render service renamed `days-with-commits` → `lenny-days-without` (dashboard) and
+   `render.yaml` synced. Empirically the onrender.com subdomain did NOT change — it's
+   fixed at creation — so days-with-commits.onrender.com stays the live URL and
+   `worker.js`/`keep-warm.yml` needed no changes (no worker redeploy needed after all).
+   (done: 2026-07-14)
 1. Bug fixed: `?from` now clamped to 2008-01-01 (GitHub launch) — kills the
    ~2000-year-fetch slow-request DoS and collapses pathological dates onto one cache key;
    covered by a clamp test. (added: 2026-07-14 in security review, done: 2026-07-14)
