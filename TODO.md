@@ -109,13 +109,13 @@ jobs:
 
 # Bugs
 
-1. ⬜ Unbounded `?from`: `?from=0001-01-01` makes `days_with_commits_since` loop over
-   ~2000 calendar years — ~2000 sequential fetches to jogruber's free API per uncached
-   request (slow-request DoS for us, abusive to them, and each unique date is a fresh
-   cache key). Clamp/reject `from` earlier than 2008-01-01 (GitHub launch).
-   (added: 2026-07-14, found in security review)
+(none open)
 
 # Done
+
+1. Bug fixed: `?from` now clamped to 2008-01-01 (GitHub launch) — kills the
+   ~2000-year-fetch slow-request DoS and collapses pathological dates onto one cache key;
+   covered by a clamp test. (added: 2026-07-14 in security review, done: 2026-07-14)
 
 1. MIT license added (LICENSE + README section) with a carve-out: `assets/lenny.png` is
    Simpsons fan art excluded from the license; DejaVu font keeps its own license. The

@@ -92,6 +92,9 @@ def image(name: str):
             since = dt.date.fromisoformat(raw)
         except ValueError:
             abort(400, "from must be YYYY-MM-DD")
+        # Clamp to GitHub's launch: an ancient date would mean thousands of
+        # year-fetches upstream, and every unique date is a fresh cache key.
+        since = max(since, dt.date(2008, 1, 1))
 
     now = dt.datetime.utcnow()
     midnight = dt.datetime.combine(now.date() + dt.timedelta(days=1), dt.time())
