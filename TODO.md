@@ -78,11 +78,15 @@ jobs:
 
 # Tasks
 
-1. ⬜ Deploy on Render (Blueprint from `render.yaml`), verify `/<name>` from the public URL.
-   If Render assigns a name other than `days-with-commits.onrender.com`, update the URLs in
-   `keep-warm.yml` and `cloudflare/worker.js`.
 1. ⬜ After a day of keep-warm pings, confirm in the Render dashboard that the service never
    slept and response times stay warm (~ms, not ~30 s).
+1. ⬜ Zone Browser Cache TTL (4 h) overrides the app's 1 h `Cache-Control` on the proxied
+   images — harmless for a once-a-day number, but if fresher is wanted set Cloudflare →
+   Caching → Browser Cache TTL to "Respect Existing Headers". (added: 2026-07-14)
+1. ⬜ Decide the Cloudflare API token's fate: keep it (needed for future `worker.js`
+   deploys — the API is the deploy path now) but note it was pasted into a Claude session
+   transcript; rotating it at dash.cloudflare.com/profile/api-tokens is the tidy move.
+   (added: 2026-07-14)
 1. ⬜ Verify the embed end-to-end: put the image in a test README, confirm Camo renders it
    and refreshes within ~1 h of a new commit day.
 1. ⬜ Wire up **olekwrites.com/lenny** (decided 2026-07-14): deploy `cloudflare/worker.js`
@@ -101,6 +105,10 @@ jobs:
 
 # Done
 
+1. **Shipped: https://olekwrites.com/lenny is live.** Render service deployed
+   (days-with-commits.onrender.com) and the `lenny` Worker + `olekwrites.com/lenny*` route
+   created via the Cloudflare API. Verified end-to-end: landing page, `/lenny/jaal` (49!),
+   `?from=2026-05-27`, edge cache HIT on repeat views, blog untouched. (done: 2026-07-14)
 1. Public repo created and pushed — https://github.com/jaal/lenny (renamed from
    days-with-commits, 2026-07-14) — including
    `keep-warm.yml` (starts pinging once the Render service exists; harmless failures until
