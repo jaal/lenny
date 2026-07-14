@@ -46,3 +46,9 @@ touching Render.
 cold start takes ~30 s — longer than GitHub Camo's ~4 s image timeout, so
 README embeds can show a broken image until the service is warm. Fixes:
 starter plan (~$7/mo), or an external uptime pinger.
+
+## License
+Code is [MIT](LICENSE). `assets/lenny.png` is Simpsons fan art
+(© 20th Television / Disney) used for parody and is **not** MIT-licensed —
+bring your own artwork if you rehost. The bundled DejaVu font has its own
+free license (`assets/DejaVu-LICENSE.txt`).
