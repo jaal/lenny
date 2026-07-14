@@ -99,8 +99,8 @@ jobs:
 1. ⬜ Per-IP throttle if traffic ever warrants it (jogruber's API is a free community
    service — be polite); the bandwidth side is now covered by the daily budget guard.
    (updated: 2026-07-14)
-1. ⬜ Confirm deploy 2c05e63 went live (was building 2026-07-14 ~19:12 UTC), then spot-check
-   the redesigned landing page + bandwidth guard on olekwrites.com/lenny. (added: 2026-07-14)
+1. ⬜ Consider Render Build Filters: ignore `TODO.md`/`*.md` so docs-only pushes don't
+   trigger a rebuild (every TODO commit currently redeploys the service). (added: 2026-07-14)
 1. ⬜ Nice-to-have: OG tags on the landing page so pasting the site link unfurls with a
    Lenny preview.
 
@@ -110,6 +110,9 @@ jobs:
 
 # Done
 
+1. Deploy verified live in production: origin badge now 109 KB PNG-8 (was 299 KB
+   truecolor), `?from=0001-01-01` answers in ~23 s with 200 (clamp working — old code
+   would fetch ~2000 years), olekwrites.com/lenny/jaal proxies fine. (done: 2026-07-14)
 1. **Render auto-deploy fixed** — root cause: the repo rename dropped `lenny` from the
    Render GitHub App's repository access (Render's source picker showed "No results for
    lenny"). Fixed by re-granting access at github.com/settings/installations and
