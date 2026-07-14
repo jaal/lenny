@@ -90,17 +90,20 @@ jobs:
    (added: 2026-07-14)
 1. ⬜ Verify the embed end-to-end: put the image in a test README, confirm Camo renders it
    and refreshes within ~1 h of a new commit day.
-1. ⬜ Wire up **olekwrites.com/lenny** (decided 2026-07-14): deploy `cloudflare/worker.js`
-   as a Worker + add route `olekwrites.com/lenny*` (steps in the file). Bonus: Cloudflare
-   edge-caches the images for 1 h, so most viewers never hit Render — softens cold starts.
+1. ⬜ Redeploy `cloudflare/worker.js` (needs the Cloudflare API token): edge cache is now
+   image-only, so landing-page deploys show up immediately instead of after the 4 h zone
+   TTL. Until redeployed, stale HTML persists. (added: 2026-07-14)
 1. ⬜ Embed my own counter (profile README + olekwrites.com) — Lenny badge
    (`/lenny/jaal?from=2026-07-08`) added to the 100-days-of-code post locally; still to do:
    push/deploy olekwrites and add to profile README. (updated: 2026-07-14)
 1. ⬜ Per-IP throttle if traffic ever warrants it (jogruber's API is a free community
    service — be polite); the bandwidth side is now covered by the daily budget guard.
    (updated: 2026-07-14)
-1. ⬜ Confirm the redesigned landing page + bandwidth guard are live on
-   olekwrites.com/lenny after Render auto-deploys the push. (added: 2026-07-14)
+1. ⬜ **Render auto-deploy is not firing** — pushes 239d159/e127154 sat ~1 h with the old
+   code still serving (verified: origin badge still 299 KB truecolor). Likely the GitHub →
+   Render hookup broke with the repo rename (days-with-commits → lenny). Fix in the Render
+   dashboard: reconnect the repo / Manual Deploy, then confirm the redesigned landing page +
+   bandwidth guard are live on olekwrites.com/lenny. (added: 2026-07-14)
 1. ⬜ Nice-to-have: OG tags on the landing page so pasting the site link unfurls with a
    Lenny preview.
 
