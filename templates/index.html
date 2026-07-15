@@ -213,6 +213,11 @@
     margin: 3em 0 2em;
   }
 </style>
+<script>
+  // PostHog — same project as olekwrites.com (key is public/write-only).
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  posthog.init('phc_utnQMZEK2rhWwjcpQLP063wfEMqoGSFvRATNF8YzXoX',{api_host:'https://eu.posthog.com'})
+</script>
 </head>
 <body>
 <div class="container">
@@ -274,9 +279,17 @@ const f = document.getElementById('f'), u = document.getElementById('u'),
       img = document.getElementById('img'), fig = document.getElementById('fig'),
       sn = document.getElementById('sn'), err = document.getElementById('err');
 
+let auto = true;  // the page's own demo submit on load — don't count it
+
 f.addEventListener('submit', e => {
   e.preventDefault();
   const m = u.value.trim().match(/(?:github\.com\/)?@?([A-Za-z0-9][A-Za-z0-9-]{0,38})\/?\s*$/);
+  if (!auto) posthog.capture('lenny_submit', {
+    // shape only, never the username itself
+    input_shape: u.value.includes('github.com') ? 'url' : 'username',
+    valid: !!m,
+  });
+  auto = false;
   if (!m) return;
   // Works at the root and behind a proxy prefix (olekwrites.com/lenny).
   const base = location.pathname.replace(/\/+$/, '');

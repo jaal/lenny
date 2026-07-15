@@ -12,9 +12,11 @@ proxies (GitHub Camo etc.) refresh them regularly.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import re
 import threading
+import urllib.request
 from collections import OrderedDict
 
 from flask import Flask, Response, abort, render_template, request
@@ -58,6 +60,37 @@ def _bw_spend(n: int) -> None:
         _bw_bytes += n
 
 
+# PostHog, same project as olekwrites.com. The key is the public write-only
+# project key (it already ships in the site's JS); env vars can override or
+# disable (POSTHOG_KEY="").
+POSTHOG_KEY = os.environ.get(
+    "POSTHOG_KEY", "phc_utnQMZEK2rhWwjcpQLP063wfEMqoGSFvRATNF8YzXoX")
+POSTHOG_HOST = os.environ.get("POSTHOG_HOST", "https://eu.posthog.com")
+ENV = "prod" if os.environ.get("RENDER") else "dev"
+
+
+def _track(event: str, props: dict) -> None:
+    """Fire-and-forget server-side capture; never blocks or fails a request."""
+    if not POSTHOG_KEY:
+        return
+    payload = json.dumps({
+        "api_key": POSTHOG_KEY,
+        "event": event,
+        "distinct_id": "lenny-server",
+        "properties": {**props, "env": ENV, "$process_person_profile": False},
+    }).encode()
+
+    def send():
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                POSTHOG_HOST + "/capture/", data=payload,
+                headers={"Content-Type": "application/json"}), timeout=10)
+        except OSError:
+            pass
+
+    threading.Thread(target=send, daemon=True).start()
+
+
 def _cached_png(user: str, since: dt.date | None, today: dt.date) -> bytes:
     key = (user.lower(), since, today)
     with _lock:
@@ -69,6 +102,11 @@ def _cached_png(user: str, since: dt.date | None, today: dt.date) -> bytes:
     else:
         number = counter.days_with_commits_since(user, since, today)
     png = counter.render(number, since=since)
+    # Cache miss = a picture actually got generated (vs merely served).
+    _track("lenny_image_generated", {
+        "username": user.lower(),
+        "mode": "from" if since else "streak",
+    })
     with _lock:
         _cache[key] = png
         while len(_cache) > CACHE_MAX:
