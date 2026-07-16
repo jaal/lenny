@@ -125,7 +125,12 @@ def _cached_png(user: str, since: dt.date | None, today: dt.date,
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # no-cache: neither Cloudflare (cacheEverything honors origin headers)
+    # nor browsers may serve a stale landing page after a deploy. The
+    # images carry their own long max-age; only the HTML must stay fresh.
+    return Response(render_template("index.html"), headers={
+        "Cache-Control": "no-cache",
+    })
 
 
 @app.route("/<name>")
