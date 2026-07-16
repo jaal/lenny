@@ -17,4 +17,4 @@ jobs:
       # so it can end one.
       - run: |
           curl -fsS -o /dev/null --max-time 90 https://days-with-commits.onrender.com/
-          curl -fsS -o /dev/null --max-time 90 "https://days-with-commits.onrender.com/jaal?from=2026-05-27"
+          curl -fsS -o /dev/null --max-time 90 "https://days-with-commits.onrender.com/jaal?from=2026-05-27&source=keepwarm"

@@ -91,7 +91,15 @@ def _track(event: str, props: dict) -> None:
     threading.Thread(target=send, daemon=True).start()
 
 
-def _cached_png(user: str, since: dt.date | None, today: dt.date) -> bytes:
+# Self-declared request source, for analytics only (not part of the cache
+# key). The landing page sends demo (its auto-loaded jaal badge) or submit
+# (a name someone typed); keep-warm pings send keepwarm; anything else —
+# README embeds, direct URLs — counts as direct.
+KNOWN_SOURCES = {"demo", "submit", "keepwarm"}
+
+
+def _cached_png(user: str, since: dt.date | None, today: dt.date,
+                source: str = "direct") -> bytes:
     key = (user.lower(), since, today)
     with _lock:
         if key in _cache:
@@ -106,6 +114,7 @@ def _cached_png(user: str, since: dt.date | None, today: dt.date) -> bytes:
     _track("lenny_image_generated", {
         "username": user.lower(),
         "mode": "from" if since else "streak",
+        "source": source,
     })
     with _lock:
         _cache[key] = png
@@ -145,8 +154,11 @@ def image(name: str):
         return Response("daily bandwidth budget exhausted, back at UTC midnight",
                         status=429, headers={"Retry-After": str(to_midnight)})
 
+    raw_source = request.args.get("source", "")
+    source = raw_source if raw_source in KNOWN_SOURCES else "direct"
+
     try:
-        png = _cached_png(name, since, now.date())
+        png = _cached_png(name, since, now.date(), source)
     except counter.UnknownUser:
         abort(404, f"GitHub user '{name}' not found")
 

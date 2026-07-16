@@ -283,13 +283,14 @@ let auto = true;  // the page's own demo submit on load — don't count it
 
 f.addEventListener('submit', e => {
   e.preventDefault();
+  const wasAuto = auto;
+  auto = false;
   const m = u.value.trim().match(/(?:github\.com\/)?@?([A-Za-z0-9][A-Za-z0-9-]{0,38})\/?\s*$/);
-  if (!auto) posthog.capture('lenny_submit', {
+  if (!wasAuto) posthog.capture('lenny_submit', {
     // shape only, never the username itself
     input_shape: u.value.includes('github.com') ? 'url' : 'username',
     valid: !!m,
   });
-  auto = false;
   if (!m) return;
   // Works at the root and behind a proxy prefix (olekwrites.com/lenny).
   const base = location.pathname.replace(/\/+$/, '');
@@ -306,7 +307,9 @@ f.addEventListener('submit', e => {
       `<img src="${url}" alt="days without missing a commit">`;
   };
   img.onerror = () => { err.style.display = 'block'; };
-  img.src = url + '?t=' + Date.now();  // bust browser cache on retry
+  // ?t= busts browser cache on retry; source tells the backend whether this
+  // render was the page's demo load or a real request (embeds send neither).
+  img.src = url + '?t=' + Date.now() + '&source=' + (wasAuto ? 'demo' : 'submit');
 });
 
 document.querySelectorAll('.snippet code').forEach(c =>
