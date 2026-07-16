@@ -90,9 +90,12 @@ jobs:
    (added: 2026-07-14)
 1. ⬜ Verify the embed end-to-end: put the image in a test README, confirm Camo renders it
    and refreshes within ~1 h of a new commit day.
-1. ⬜ Redeploy `cloudflare/worker.js` (needs the Cloudflare API token): edge cache is now
-   image-only, so landing-page deploys show up immediately instead of after the 4 h zone
-   TTL. Until redeployed, stale HTML persists. (added: 2026-07-14)
+1. ⬜ Redeploy `cloudflare/worker.js` (needs the Cloudflare API token) — now merely
+   nice-to-have: the app sends `Cache-Control: no-cache` on the landing page
+   (e08cfe6), which the worker's cacheEverything honors, so stale HTML is already
+   fixed at the origin. The worker change remains as belt-and-braces. Copies cached
+   before the fix age out by ~4 h after the deploy (or purge in the dashboard).
+   (added: 2026-07-14, updated: 2026-07-16)
 1. ⬜ Embed my own counter — olekwrites.com done (badge in the 100-days-of-code post +
    `/lenny` index note, both pushed 2026-07-14); still to do: profile README.
    (updated: 2026-07-14)
@@ -110,6 +113,16 @@ jobs:
 
 # Done
 
+1. Stale-HTML class fixed at the origin: landing page served with
+   `Cache-Control: no-cache`, so neither the Cloudflare edge nor browsers hold the
+   page across deploys (the zone default had been stamping max-age=14400 on it).
+   Trigger: "submit doesn't work" report that was a 4 h-stale browser copy — live
+   site verified working (autoload + submit) before and after. (done: 2026-07-16)
+1. PostHog analytics shipped for /lenny: lenny_submit (frontend, demo auto-submit
+   excluded, no usernames) + lenny_image_generated (backend, per cache miss, with
+   env prod/dev and source demo/submit/keepwarm/direct, junk sanitized to direct).
+   Verified end-to-end dev + prod; insight "Lenny — submits & images generated"
+   (WuAJ24fn) splits on-demand vs housekeeping renders. (done: 2026-07-16)
 1. Deploy verified live in production: origin badge now 109 KB PNG-8 (was 299 KB
    truecolor), `?from=0001-01-01` answers in ~23 s with 200 (clamp working — old code
    would fetch ~2000 years), olekwrites.com/lenny/jaal proxies fine. (done: 2026-07-14)
