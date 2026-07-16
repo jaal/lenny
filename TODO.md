@@ -79,8 +79,14 @@ jobs:
 
 # Tasks
 
-1. ⬜ After a day of keep-warm pings, confirm in the Render dashboard that the service never
-   slept and response times stay warm (~ms, not ~30 s).
+1. ⬜ **Keep-warm is not working — the service sleeps most of the day.** Evidence
+   (2026-07-16): GitHub ran the */10 cron at gaps of 1.5–3.7 h (12:54, 11:10, 09:02,
+   06:37…) — GitHub throttles scheduled workflows hard; also visible as ~13 jaal
+   re-renders/night in PostHog (each sleep wipes the in-process cache). Fix: the
+   UptimeRobot free plan (5-min pings, needs signup) already contemplated below, or
+   Render starter. Mitigated meanwhile: demo badge is edge-cached (stable URL, no ?t=)
+   so the landing page shows instantly, and the page now shows a "drawing the sign…"
+   status during slow loads. (updated: 2026-07-16)
 1. ⬜ Zone Browser Cache TTL (4 h) overrides the app's 1 h `Cache-Control` on the proxied
    images — harmless for a once-a-day number, but if fresher is wanted set Cloudflare →
    Caching → Browser Cache TTL to "Respect Existing Headers". (added: 2026-07-14)

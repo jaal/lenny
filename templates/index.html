@@ -207,6 +207,8 @@
   }
   .hint { font-size: 1.05rem; color: #333; }
   .err { color: #d1242f; display: none; }
+  .status { color: #555; font-family: var(--mono-font); font-size: 1rem;
+            display: none; }
 
   footer {
     font-size: 1rem;
@@ -249,6 +251,8 @@
         <button type="submit">Show me</button>
       </form>
       <p class="err" id="err">Couldn't find that GitHub user.</p>
+      <p class="status" id="st">Drawing the sign… first request can take
+        ~30 s if the machine was napping.</p>
     </div>
 
     <figure class="preview" id="fig">
@@ -277,7 +281,8 @@
 <script>
 const f = document.getElementById('f'), u = document.getElementById('u'),
       img = document.getElementById('img'), fig = document.getElementById('fig'),
-      sn = document.getElementById('sn'), err = document.getElementById('err');
+      sn = document.getElementById('sn'), err = document.getElementById('err'),
+      st = document.getElementById('st'), btn = f.querySelector('button');
 
 let auto = true;  // the page's own demo submit on load — don't count it
 
@@ -297,7 +302,11 @@ f.addEventListener('submit', e => {
   const name = m[1], url = location.origin + base + '/' + name;
   err.style.display = 'none';
   fig.style.display = sn.style.display = 'none';
+  st.style.display = 'block';
+  btn.disabled = true;
   img.onload = () => {
+    st.style.display = 'none';
+    btn.disabled = false;
     fig.style.display = 'block';
     sn.style.display = 'block';
     document.getElementById('c-url').textContent = url;
@@ -306,10 +315,18 @@ f.addEventListener('submit', e => {
     document.getElementById('c-html').textContent =
       `<img src="${url}" alt="days without missing a commit">`;
   };
-  img.onerror = () => { err.style.display = 'block'; };
-  // ?t= busts browser cache on retry; source tells the backend whether this
-  // render was the page's demo load or a real request (embeds send neither).
-  img.src = url + '?t=' + Date.now() + '&source=' + (wasAuto ? 'demo' : 'submit');
+  img.onerror = () => {
+    st.style.display = 'none';
+    btn.disabled = false;
+    err.style.display = 'block';
+  };
+  // source tells the backend whether this render was the page's demo load or
+  // a real request (embeds send neither). The demo URL is stable on purpose:
+  // Cloudflare edge-caches it, so the badge shows instantly even when the
+  // Render box is napping. Submits get ?t= — busts browser/edge cache on
+  // retry and keeps a cached 404 from shadowing a valid re-attempt.
+  img.src = wasAuto ? url + '?source=demo'
+                    : url + '?t=' + Date.now() + '&source=submit';
 });
 
 document.querySelectorAll('.snippet code').forEach(c =>
