@@ -79,27 +79,18 @@ jobs:
 
 # Tasks
 
-1. ⬜ **Ship the Vivaldi Dashboard widget** — built and tested locally
-   (2026-08-01), not deployed. `GET /<name>/widget/vivaldi` serves a 394px-wide
-   page (`templates/widget_vivaldi.html`) that a user adds via Dashboard → Add
-   Widget → Webpage. Pointing a widget straight at the image URL worked but
-   looked raw — Vivaldi's image viewer letterboxes the PNG in black and titles
-   the card "jaal (619×403)". The page fixes all three: Vivaldi theme colours
-   (`--colorBg`/`--colorFg`/…, with fallbacks for when "Share Theme Colors" is
-   off), a title that rewrites itself to "67 days without missing a commit ·
-   @jaal", and a clean URL under the card. It paints from a localStorage copy of
-   the badge the instant the Dashboard opens and only refetches when the UTC day
-   has turned — which is also the polite call pattern, since the origin freezes
-   one badge per user per UTC day anyway. `X-Lenny-Count` on the image response
-   carries the number so the title costs no second request. Regular (~155px)
-   crops the sign to fill the width; Tall (~380px) shows the whole picture plus
-   a caption. Landing page now offers the widget URL as a fourth snippet.
-   Remaining: deploy, then verify in a real Dashboard at **both** sizes, in a
-   dark theme, and with *Share Theme Colors* unticked — only Tall + the theme
-   fallback have been seen so far (screenshots of Regular kept freezing the
-   test browser). Consider a `/legal` + `/privacy` pass: the widget stores a
-   ~140 KB badge data-URL in olekwrites.com localStorage and fires no frontend
-   analytics (the backend still tags the fetch `source=widget`). (added: 2026-08-01)
+1. ⬜ **Verify the Vivaldi widget in a real Dashboard** — deployed and verified
+   live in a normal tab, but only Tall has been seen at its true size, and only
+   with the CSS dark fallback. Still to check: Regular (~155px, where the sign
+   crops to fill the width and the header/caption drop out), a dark Vivaldi
+   theme with *Share Theme Colors* **ticked**, the same **unticked**, and
+   whether a plain left-click opens github.com/<name> or falls back to
+   navigating the widget itself. (added: 2026-08-01)
+1. ⬜ `/legal` + `/privacy` pass on the widget as a new surface: it parks a
+   ~142 KB badge data-URL in olekwrites.com's localStorage (`lenny_w_*`) and
+   runs no frontend analytics — the badge fetch tags itself `source=widget` for
+   the existing server-side event. Nothing new leaves the browser, but the
+   storage is worth a line somewhere. (added: 2026-08-01)
 1. ⬜ **Keep-warm is not working — the service sleeps most of the day.** Evidence
    (2026-07-16): GitHub ran the */10 cron at gaps of 1.5–3.7 h (12:54, 11:10, 09:02,
    06:37…) — GitHub throttles scheduled workflows hard; also visible as ~13 jaal
@@ -108,9 +99,18 @@ jobs:
    Render starter. Mitigated meanwhile: demo badge is edge-cached (stable URL, no ?t=)
    so the landing page shows instantly, and the page now shows a "drawing the sign…"
    status during slow loads. (updated: 2026-07-16)
-1. ⬜ Zone Browser Cache TTL (4 h) overrides the app's 1 h `Cache-Control` on the proxied
-   images — harmless for a once-a-day number, but if fresher is wanted set Cloudflare →
+1. ⬜ Zone Browser Cache TTL (4 h) overrides the app's `Cache-Control` on everything
+   proxied — harmless for a once-a-day number, but if fresher is wanted set Cloudflare →
    Caching → Browser Cache TTL to "Respect Existing Headers". (added: 2026-07-14)
+   **It also defeats the e08cfe6 no-cache fix for HTML** (measured 2026-08-01): both
+   `/lenny` and `/lenny/<name>/widget/vivaldi` come back through the edge as
+   `max-age=14400` even though the origin says `no-cache`, so browsers still hold
+   HTML for 4 h across a deploy — the exact shape of the "submit doesn't work"
+   report. Two fixes, either works: the zone setting above (affects the whole blog),
+   or narrow the Worker's `cacheEverything` to badge paths only —
+   `/^\/[A-Za-z0-9-]+$/.test(path)` instead of `path !== "/"` — which leaves HTML
+   uncached so the origin headers pass through (needs a worker redeploy, see below).
+   (updated: 2026-08-01)
 1. ⬜ Decide the Cloudflare API token's fate: keep it (needed for future `worker.js`
    deploys — the API is the deploy path now) but note it was pasted into a Claude session
    transcript; rotating it at dash.cloudflare.com/profile/api-tokens is the tidy move.
@@ -140,6 +140,25 @@ jobs:
 
 # Done
 
+1. **Vivaldi Dashboard widget shipped** — `<domain>/<name>/widget/vivaldi`
+   (`?from=` supported), live at olekwrites.com/lenny/jaal/widget/vivaldi.
+   Pointing a Webpage widget straight at the badge URL worked but gave
+   Vivaldi's bare image viewer: PNG letterboxed in black, card titled
+   "jaal (619×403)". The page replaces that with a Vivaldi-themed frame
+   (`--colorBg`/`--colorFg`/`--radius`/`--isDarkTheme`, with light and dark
+   fallbacks for *Share Theme Colors* off), a title that rewrites itself to
+   "67 days without missing a commit · @jaal", and a clean URL under the card.
+   Cache-first: it paints a localStorage copy of the badge the instant the
+   Dashboard opens (Vivaldi reloads widget pages on every open, and the service
+   naps on Render free) and refetches only once the UTC day has turned — which
+   is also the only time the answer can change, since the origin freezes one
+   badge per user per UTC day. New `X-Lenny-Count` response header carries the
+   number so the title costs no second request; it survives the Cloudflare edge.
+   Regular (~155px) crops the sign to fill the width, Tall (~380px) shows the
+   whole picture plus a caption. Landing page gained a widget snippet and an
+   "On your Vivaldi startpage" section. Verified live: both modes, cache-hit
+   path (zero requests on a same-day reload), stale-day refresh, unknown-user
+   error state, proxy-prefix URL math. (done: 2026-08-01)
 1. Stale-HTML class fixed at the origin: landing page served with
    `Cache-Control: no-cache`, so neither the Cloudflare edge nor browsers hold the
    page across deploys (the zone default had been stamping max-age=14400 on it).
