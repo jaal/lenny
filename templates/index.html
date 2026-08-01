@@ -75,6 +75,14 @@
     .title { font-size: 2.4rem; }
   }
 
+  .sub {
+    font-family: 'Chivo', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0.4em 0 0.6em;
+  }
+
   .meta {
     text-align: center;
     text-transform: uppercase;
@@ -267,8 +275,27 @@
         <code id="c-md" title="click to copy"></code></div>
       <div class="snippet"><label>HTML</label>
         <code id="c-html" title="click to copy"></code></div>
+      <div class="snippet"><label>Vivaldi Dashboard widget</label>
+        <code id="c-widget" title="click to copy"></code></div>
       <p class="hint">Add <code class="inline">?from=YYYY-MM-DD</code>
         to count days with ≥ 1 commit since a fixed date instead of the streak.</p>
+    </div>
+
+    <div class="section rainbow-links">
+      <h2 class="sub">On your Vivaldi startpage</h2>
+
+      <p>That last snippet is a widget page. If you use
+        <a href="https://vivaldi.com/">Vivaldi</a>, the sign can sit on your
+        startpage: open the Dashboard, <em>Add Widget</em> → <em>Webpage</em>,
+        paste the URL, and tick <em>Share Theme Colors</em>. It works at both
+        widget sizes — the small one crops to the sign, the tall one shows all
+        of Lenny — and <code class="inline">?from=</code> works there too.</p>
+
+      <p>Vivaldi closes widget pages when you close the Dashboard and reloads
+        them when you open it, so the page keeps a copy of yesterday's sign and
+        shows it the instant you hit the Dashboard, then fetches a new one only
+        once the day has actually turned. Which means it stays quick even when
+        the little server behind all this is having a nap.</p>
     </div>
 
     <footer class="rainbow-links">
@@ -314,6 +341,7 @@ f.addEventListener('submit', e => {
       `![days without missing a commit](${url})`;
     document.getElementById('c-html').textContent =
       `<img src="${url}" alt="days without missing a commit">`;
+    document.getElementById('c-widget').textContent = url + '/widget/vivaldi';
   };
   img.onerror = () => {
     st.style.display = 'none';

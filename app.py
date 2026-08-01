@@ -3,6 +3,8 @@
   GET /            landing page (enter a GitHub URL/username)
   GET /<username>  PNG — current streak of days with >=1 commit
                    ?from=YYYY-MM-DD — days with >=1 commit since that date
+  GET /<username>/widget/vivaldi
+                   HTML — the badge as a Vivaldi Dashboard webpage widget
 
 Images are computed from live contribution data on request and cached
 in-process for the rest of the UTC day, with Cache-Control set so embed
@@ -27,7 +29,7 @@ app = Flask(__name__)
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 CACHE_MAX = 2048
-_cache: OrderedDict[tuple, bytes] = OrderedDict()
+_cache: OrderedDict[tuple, tuple[int, bytes]] = OrderedDict()
 _lock = threading.Lock()
 
 # Daily bandwidth budget (Render free tier: 100 GB/month ~ 3.2 GB/day).
@@ -93,13 +95,14 @@ def _track(event: str, props: dict) -> None:
 
 # Self-declared request source, for analytics only (not part of the cache
 # key). The landing page sends demo (its auto-loaded jaal badge) or submit
-# (a name someone typed); keep-warm pings send keepwarm; anything else —
-# README embeds, direct URLs — counts as direct.
-KNOWN_SOURCES = {"demo", "submit", "keepwarm"}
+# (a name someone typed); keep-warm pings send keepwarm; the Vivaldi widget
+# sends widget; anything else — README embeds, direct URLs — counts as direct.
+KNOWN_SOURCES = {"demo", "submit", "keepwarm", "widget"}
 
 
 def _cached_png(user: str, since: dt.date | None, today: dt.date,
-                source: str = "direct") -> bytes:
+                source: str = "direct") -> tuple[int, bytes]:
+    """(number, PNG bytes) for one user-day, computed once and reused."""
     key = (user.lower(), since, today)
     with _lock:
         if key in _cache:
@@ -117,10 +120,24 @@ def _cached_png(user: str, since: dt.date | None, today: dt.date,
         "source": source,
     })
     with _lock:
-        _cache[key] = png
+        _cache[key] = (number, png)
         while len(_cache) > CACHE_MAX:
             _cache.popitem(last=False)
-    return png
+    return number, png
+
+
+def _since_arg() -> dt.date | None:
+    """Parse ?from=YYYY-MM-DD; 400 on junk, clamped to GitHub's launch."""
+    raw = request.args.get("from")
+    if not raw:
+        return None
+    try:
+        since = dt.date.fromisoformat(raw)
+    except ValueError:
+        abort(400, "from must be YYYY-MM-DD")
+    # Clamp to GitHub's launch: an ancient date would mean thousands of
+    # year-fetches upstream, and every unique date is a fresh cache key.
+    return max(since, dt.date(2008, 1, 1))
 
 
 @app.route("/")
@@ -140,15 +157,7 @@ def image(name: str):
     if not USERNAME_RE.match(name):
         abort(404)
 
-    since = None
-    if raw := request.args.get("from"):
-        try:
-            since = dt.date.fromisoformat(raw)
-        except ValueError:
-            abort(400, "from must be YYYY-MM-DD")
-        # Clamp to GitHub's launch: an ancient date would mean thousands of
-        # year-fetches upstream, and every unique date is a fresh cache key.
-        since = max(since, dt.date(2008, 1, 1))
+    since = _since_arg()
 
     now = dt.datetime.utcnow()
     midnight = dt.datetime.combine(now.date() + dt.timedelta(days=1), dt.time())
@@ -163,7 +172,7 @@ def image(name: str):
     source = raw_source if raw_source in KNOWN_SOURCES else "direct"
 
     try:
-        png = _cached_png(name, since, now.date(), source)
+        number, png = _cached_png(name, since, now.date(), source)
     except counter.UnknownUser:
         abort(404, f"GitHub user '{name}' not found")
 
@@ -177,7 +186,32 @@ def image(name: str):
     max_age = min(21600, to_midnight)
     return Response(png, mimetype="image/png", headers={
         "Cache-Control": f"public, max-age={max_age}",
+        # The number the picture already shows, in machine-readable form: it
+        # saves the Vivaldi widget a second round trip just to title itself.
+        "X-Lenny-Count": str(number),
     })
+
+
+@app.route("/<name>/widget/vivaldi")
+def widget_vivaldi(name: str):
+    """A Vivaldi Dashboard "Webpage widget" wrapper around one user's badge.
+
+    Deliberately does no counting: the page must paint from the widget's own
+    localStorage cache the instant the Dashboard opens, so anything that would
+    block this response on the contributions API (a ~30 s cold start) defeats
+    the point. The badge, and its X-Lenny-Count, are fetched client-side.
+    """
+    if not USERNAME_RE.match(name):
+        abort(404)
+    since = _since_arg()
+    # no-cache for the same reason as the landing page: the edge (and browsers)
+    # must not hold widget HTML across a deploy. The badge inside it carries
+    # its own long max-age.
+    return Response(
+        render_template("widget_vivaldi.html", username=name,
+                        since=since.isoformat() if since else None),
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 if __name__ == "__main__":

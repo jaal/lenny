@@ -79,6 +79,27 @@ jobs:
 
 # Tasks
 
+1. ⬜ **Ship the Vivaldi Dashboard widget** — built and tested locally
+   (2026-08-01), not deployed. `GET /<name>/widget/vivaldi` serves a 394px-wide
+   page (`templates/widget_vivaldi.html`) that a user adds via Dashboard → Add
+   Widget → Webpage. Pointing a widget straight at the image URL worked but
+   looked raw — Vivaldi's image viewer letterboxes the PNG in black and titles
+   the card "jaal (619×403)". The page fixes all three: Vivaldi theme colours
+   (`--colorBg`/`--colorFg`/…, with fallbacks for when "Share Theme Colors" is
+   off), a title that rewrites itself to "67 days without missing a commit ·
+   @jaal", and a clean URL under the card. It paints from a localStorage copy of
+   the badge the instant the Dashboard opens and only refetches when the UTC day
+   has turned — which is also the polite call pattern, since the origin freezes
+   one badge per user per UTC day anyway. `X-Lenny-Count` on the image response
+   carries the number so the title costs no second request. Regular (~155px)
+   crops the sign to fill the width; Tall (~380px) shows the whole picture plus
+   a caption. Landing page now offers the widget URL as a fourth snippet.
+   Remaining: deploy, then verify in a real Dashboard at **both** sizes, in a
+   dark theme, and with *Share Theme Colors* unticked — only Tall + the theme
+   fallback have been seen so far (screenshots of Regular kept freezing the
+   test browser). Consider a `/legal` + `/privacy` pass: the widget stores a
+   ~140 KB badge data-URL in olekwrites.com localStorage and fires no frontend
+   analytics (the backend still tags the fetch `source=widget`). (added: 2026-08-01)
 1. ⬜ **Keep-warm is not working — the service sleeps most of the day.** Evidence
    (2026-07-16): GitHub ran the */10 cron at gaps of 1.5–3.7 h (12:54, 11:10, 09:02,
    06:37…) — GitHub throttles scheduled workflows hard; also visible as ~13 jaal

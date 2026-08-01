@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- A widget surface, not a page anyone should reach from a search result. -->
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<!-- Vivaldi prints <title> as the widget card's own title line, above the web
+     view. It is rewritten with the number as soon as the badge lands, but it
+     has to read well before that too. -->
+<title>{% if since %}Days with ≥1 commit since {{ since }}{% else %}Days without missing a commit{% endif %} · @{{ username }}</title>
+<!--
+  lenny widget for Vivaldi.
+
+  Added in Vivaldi as Dashboard → Add Widget → Webpage → this URL. What that
+  gives us, and what it therefore has to survive:
+
+  - The viewport is 394px wide and either ~155px (Regular) or ~380px (Tall)
+    tall, toggled live from the widget's ⋯ menu. Both must work, and the page
+    itself must never scroll.
+  - Theme variables (--colorBg/--colorFg/--colorHighlightBg/--radius/
+    --isDarkTheme) exist only when the user ticks "Share Theme Colors", so
+    every use needs a fallback.
+  - All dialogs and permission prompts are disabled inside a widget.
+  - The page is NOT kept alive: Vivaldi closes it when the Dashboard closes and
+    re-loads it on every open. Cold-start speed is the whole game — and this
+    service naps on Render's free tier, where a cold badge takes ~30 s. Hence
+    paint-from-localStorage-first, refetch only when the UTC day has turned
+    (the origin caches a badge per user per UTC day, so a same-day refetch
+    would return the identical bytes anyway).
+  - A plain left-click on target="_blank" is unreliable in a widget, so the
+    click handler falls back to navigating the widget itself.
+
+  No analytics run here: the backend already tags the badge fetch with
+  source=widget, which is enough, and a consent banner does not fit in 155px.
+-->
+<style>
+  :root {
+    --bg: var(--colorBg, #fdfdfc);
+    --fg: var(--colorFg, #1c232a);
+    --accent: var(--colorHighlightBg, #057DFF);
+    --r: var(--radius, 8px);
+  }
+  /* Secondary text is mixed from the theme's own fg/bg, not a fixed grey: a
+     Vivaldi theme background can be any colour, and fixed rgba() over a
+     mid-tone theme drops the 10.5px footer below readable contrast. */
+  :root { --muted: color-mix(in srgb, var(--fg) 62%, var(--bg)); }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: var(--colorBg, #14161c); --fg: var(--colorFg, #e9e9f0); }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden;                    /* a widget must never scroll */
+  }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { height: 100%; display: flex; flex-direction: column;
+          padding: 5px 8px 3px; gap: 3px; }
+
+  /* The header only earns its space in Tall; Regular gives the sign the lot. */
+  .head { display: none; flex: none; align-items: baseline; gap: 6px;
+          font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .head .who { font-weight: 650; overflow: hidden; text-overflow: ellipsis; }
+  .head .since { color: var(--muted); font-size: 11px; flex: none; }
+  @media (min-height: 220px) { .head { display: flex; } }
+
+  /* The sign is one big link — a small icon would be hard to hit in a 155px
+     widget, and the click-out is the only way from here back to the source. */
+  a.open {
+    flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2px; border-radius: var(--r);
+    color: inherit; text-decoration: none;
+  }
+  a.open:hover { background: color-mix(in srgb, var(--fg) 7%, var(--bg)); }
+  a.open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  /* The badge is 619x403, so at 394px wide it wants 256px of height — more than
+     Regular has. Letterboxing it there leaves the sign small and marooned in the
+     middle of the widget, so Regular crops instead: fill the width, and shift
+     the crop up to 16% so the window lands on the number card and both caption
+     lines (Lenny's legs are the only thing lost). Tall has the room for the
+     whole picture, Lenny included, which is the joke — so it letterboxes. */
+  img { width: 100%; height: 100%; display: block;
+        object-fit: cover; object-position: center 16%;
+        border-radius: calc(var(--r) - 2px); }
+  @media (min-height: 220px) {
+    img { object-fit: contain; object-position: center; }
+  }
+
+  /* Tall fits the badge at 394x256 in a ~330px box, so there is slack under it.
+     A caption spends that on the number in text — which also survives a badge
+     that never loads, and gives the sign a readable form for a screen reader. */
+  .cap { display: none; flex: none; text-align: center; margin-top: 3px;
+         font-size: 11.5px; color: var(--muted);
+         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cap b { color: var(--fg); font-weight: 650; font-size: 13px; }
+  @media (min-height: 220px) { .cap { display: block; } }
+
+  .msg { text-align: center; padding: 0 10px; }
+  .msg b { display: block; font-size: 12.5px; font-weight: 600; }
+  .msg span { display: block; margin-top: 3px; font-size: 11px;
+              color: var(--muted); line-height: 1.35; }
+
+  .foot { flex: none; display: flex; align-items: center; gap: 5px;
+          font-size: 10.5px; color: var(--muted);
+          white-space: nowrap; overflow: hidden; }
+  .foot .note { overflow: hidden; text-overflow: ellipsis; }
+  .foot .sep { opacity: .5; flex: none; }
+  .foot a { color: inherit; text-decoration: none; font-weight: 600;
+            flex: none; margin-left: auto; }
+  .foot a:hover { text-decoration: underline; }
+
+  [hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <span class="who">@{{ username }}</span>
+    {% if since %}<span class="since">since {{ since }}</span>{% endif %}
+  </div>
+
+  <a class="open" id="open" href="https://github.com/{{ username }}"
+     target="_blank" rel="noopener noreferrer">
+    <img id="sign" alt="{{ username }}'s commit streak on the Lenny sign" hidden>
+    <div class="msg" id="msg">
+      <b id="msgTitle">Drawing the sign…</b>
+      <span id="msgBody">First load can take ~30 s if the machine was napping.</span>
+    </div>
+  </a>
+
+  <div class="cap" id="cap" hidden><b id="capN"></b> <span id="capT"></span></div>
+
+  <div class="foot">
+    <span class="note" id="note"></span>
+    <a id="home" href="#">lenny</a>
+  </div>
+</div>
+
+<script>
+const USER = {{ username|tojson }};
+const FROM = {{ since|tojson }};
+
+const $ = id => document.getElementById(id);
+const img = $('sign'), msg = $('msg');
+
+// Works at the root (localhost:5001) and behind the olekwrites.com/lenny proxy
+// alike: strip this page's own "/<user>/widget/vivaldi" tail to find the service.
+const base = location.pathname.replace(/\/[^/]+\/widget\/vivaldi\/?$/, '');
+const badgeUrl = location.origin + base + '/' + encodeURIComponent(USER) +
+                 '?source=widget' + (FROM ? '&from=' + encodeURIComponent(FROM) : '');
+$('home').href = location.origin + base + '/';
+
+const KEY = 'lenny_w_' + USER.toLowerCase() + '_' + (FROM || 'streak');
+const utcDay = () => new Date().toISOString().slice(0, 10);
+
+function show(head, body) {
+  $('msgTitle').textContent = head;
+  $('msgBody').textContent = body || '';
+  msg.hidden = false;
+}
+
+const WHAT = FROM ? 'with ≥1 commit since ' + FROM : 'without missing a commit';
+const days = n => n + (n === 1 ? ' day' : ' days');
+
+// "67 days without missing a commit · @jaal" — the widget card's title line.
+// n is unknown until the badge lands, and the numberless form is the one the
+// server rendered into <title>, so this stays readable either way.
+function title(n) {
+  return (n == null ? 'Days ' : days(n) + ' ') + WHAT + ' · @' + USER;
+}
+
+function paint(dataUrl, day, n) {
+  img.src = dataUrl;
+  img.alt = title(n);
+  img.hidden = false;
+  msg.hidden = true;
+  if (n != null) {
+    document.title = title(n);
+    $('capN').textContent = days(n);
+    $('capT').textContent = WHAT;
+    $('cap').hidden = false;
+  }
+  // A day-old sign is still worth showing — it just says so.
+  $('note').textContent = day === utcDay() ? '' : 'as of ' + day;
+}
+
+function readCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(KEY) || 'null');
+    return c && c.data && c.day ? c : null;
+  } catch { return null; }
+}
+
+function writeCache(entry) {
+  const put = () => localStorage.setItem(KEY, JSON.stringify(entry));
+  try { put(); } catch {
+    // Quota is shared with everything else on this origin. Drop other lenny
+    // widgets' caches (a stale badge is cheap to re-fetch) and try once more.
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('lenny_w_') && k !== KEY) localStorage.removeItem(k);
+      }
+      put();
+    } catch { /* running without a usable store is fine, just slower */ }
+  }
+}
+
+async function refresh() {
+  // 90 s: the fetch itself has to outlive a Render cold start, or it would
+  // abort exactly the request that ends one.
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 90000);
+  let r;
+  try {
+    r = await fetch(badgeUrl, { cache: 'no-store', signal: ctl.signal });
+  } catch {
+    return { ok: false, why: 'offline' };
+  } finally { clearTimeout(t); }
+
+  if (!r.ok) return { ok: false, why: r.status === 404 ? 'nouser'
+                                    : r.status === 429 ? 'budget' : 'error' };
+  // Same origin, so every response header is readable: the count rides along
+  // with the picture instead of costing a second request.
+  const n = parseInt(r.headers.get('X-Lenny-Count'), 10);
+  const blob = await r.blob();
+  const data = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+  const entry = { day: utcDay(), data, n: isFinite(n) ? n : null };
+  writeCache(entry);
+  paint(entry.data, entry.day, entry.n);
+  return { ok: true };
+}
+
+const FAIL = {
+  nouser: ['No such GitHub user', 'Check the username in the widget URL.'],
+  budget: ['Badge paused', "Today's bandwidth budget is spent. Back at UTC midnight."],
+  offline: ["Couldn't reach lenny", 'It may still be waking up — reopen the Dashboard.'],
+  error:  ["Couldn't draw the sign", 'Something went wrong on the way. Try again later.'],
+};
+
+let lastDay = utcDay();
+
+(async function load() {
+  const cached = readCache();
+  if (cached) paint(cached.data, cached.day, cached.n);
+
+  // The origin computes one badge per user per UTC day and serves it from cache
+  // for the rest of that day, so a same-day refetch would return identical
+  // bytes. Refetching only across the day boundary is both the polite call
+  // pattern and the correct one.
+  if (cached && cached.day === lastDay) return;
+
+  const res = await refresh();
+  if (res.ok) return;
+  if (cached) $('note').textContent = 'as of ' + cached.day;   // keep the old sign
+  else show(...FAIL[res.why]);
+})();
+
+// The Dashboard can sit open across UTC midnight, when the number can change.
+setInterval(() => {
+  const d = utcDay();
+  if (d === lastDay) return;
+  lastDay = d;
+  refresh();
+}, 300000);
+
+// A plain left-click on target="_blank" does not reliably open in a Vivaldi
+// widget. Try a new tab, and fall back to navigating the widget itself so the
+// click always does something.
+$('open').addEventListener('click', e => {
+  const url = $('open').href;
+  if (!url) return;
+  e.preventDefault();
+  let w = null;
+  try { w = window.open(url, '_blank', 'noopener'); } catch {}
+  if (!w) { try { location.href = url; } catch {} }
+});
+</script>
+</html>
