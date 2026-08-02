@@ -165,7 +165,10 @@ jobs:
    whole picture plus a caption. Landing page gained a widget snippet and an
    "On your Vivaldi startpage" section. Verified live: both modes, cache-hit
    path (zero requests on a same-day reload), stale-day refresh, unknown-user
-   error state, proxy-prefix URL math. (done: 2026-08-01)
+   error state, proxy-prefix URL math. Confirmed live 2026-08-02 that the day
+   gate does its job in the wild: the count rolled 67 → 68 at UTC midnight on
+   the first Dashboard-equivalent load of the new day, and a reload after it
+   made zero requests. (done: 2026-08-01, fetch limits added: 2026-08-02)
 1. Stale-HTML class fixed at the origin: landing page served with
    `Cache-Control: no-cache`, so neither the Cloudflare edge nor browsers hold the
    page across deploys (the zone default had been stamping max-age=14400 on it).
