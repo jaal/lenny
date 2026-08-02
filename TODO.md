@@ -99,35 +99,16 @@ jobs:
    Render starter. Mitigated meanwhile: demo badge is edge-cached (stable URL, no ?t=)
    so the landing page shows instantly, and the page now shows a "drawing the sign…"
    status during slow loads. (updated: 2026-07-16)
-1. ⬜ Zone Browser Cache TTL (4 h) overrides the app's `Cache-Control` on everything
-   proxied — harmless for a once-a-day number, but if fresher is wanted set Cloudflare →
-   Caching → Browser Cache TTL to "Respect Existing Headers". (added: 2026-07-14)
-   **It also defeats the e08cfe6 no-cache fix for HTML** (measured 2026-08-01): both
-   `/lenny` and `/lenny/<name>/widget/vivaldi` come back through the edge as
-   `max-age=14400` even though the origin says `no-cache`, so browsers still hold
-   HTML for 4 h across a deploy — the exact shape of the "submit doesn't work"
-   report. Two fixes, either works: the zone setting above (affects the whole blog),
-   or narrow the Worker's `cacheEverything` to badge paths only —
-   `/^\/[A-Za-z0-9-]+$/.test(path)` instead of `path !== "/"` — which leaves HTML
-   uncached so the origin headers pass through (needs a worker redeploy, see below).
-   (updated: 2026-08-01)
-1. ⬜ Decide the Cloudflare API token's fate: keep it (needed for future `worker.js`
-   deploys — the API is the deploy path now) but note it was pasted into a Claude session
-   transcript; rotating it at dash.cloudflare.com/profile/api-tokens is the tidy move.
-   (added: 2026-07-14)
+1. ⬜ Rotate the Cloudflare API token at dash.cloudflare.com/profile/api-tokens.
+   It lives in `CLOUDFLARE_API_TOKEN` in the shell environment and is the deploy
+   path for `worker.js` — used again on 2026-08-02 to ship the cacheEverything
+   narrowing and the client-IP forwarding, so it has now been exercised from a
+   second Claude session on top of the transcript it was originally pasted into.
+   Keep the capability, replace the secret. (added: 2026-07-14, updated: 2026-08-02)
 1. ⬜ Verify the embed end-to-end: put the image in a test README, confirm Camo renders it
    and refreshes within ~1 h of a new commit day.
-1. ⬜ Redeploy `cloudflare/worker.js` (needs the Cloudflare API token) — now merely
-   nice-to-have: the app sends `Cache-Control: no-cache` on the landing page
-   (e08cfe6), which the worker's cacheEverything honors, so stale HTML is already
-   fixed at the origin. The worker change remains as belt-and-braces. Copies cached
-   before the fix age out by ~4 h after the deploy (or purge in the dashboard).
-   (added: 2026-07-14, updated: 2026-07-16)
 1. ⬜ Embed my own counter — olekwrites.com done (badge in the 100-days-of-code post +
    `/lenny` index note, both pushed 2026-07-14); still to do: profile README.
-   (updated: 2026-07-14)
-1. ⬜ Per-IP throttle if traffic ever warrants it (jogruber's API is a free community
-   service — be polite); the bandwidth side is now covered by the daily budget guard.
    (updated: 2026-07-14)
 1. ⬜ Consider Render Build Filters: ignore `TODO.md`/`*.md` so docs-only pushes don't
    trigger a rebuild (every TODO commit currently redeploys the service). (added: 2026-07-14)
@@ -140,6 +121,37 @@ jobs:
 
 # Done
 
+1. **Stale HTML fixed for real, at the edge this time.** The zone's Browser
+   Cache TTL (4 h) was rewriting the origin's `no-cache` on every HTML response
+   to `max-age=14400`, so browsers kept the landing page and the widget page
+   across deploys — the same class as the July "submit doesn't work" report,
+   which e08cfe6 had only appeared to fix. Root cause was that the worker
+   narrowing committed in e127154 on 2026-07-14 was **never deployed**: the live
+   worker was still `cacheEverything: true` for everything, and the zone TTL only
+   applies to responses Cloudflare actually caches. `cacheEverything` now matches
+   badge paths only (`/<user>` or `/<user>.png`), and the worker was deployed via
+   the Cloudflare API. Verified: HTML is `DYNAMIC` + `no-cache`, badges still go
+   `EXPIRED` → `HIT` at `max-age=21600` with `X-Lenny-Count` intact, `.png` and
+   `?from` unaffected, blog untouched. The zone setting itself is unchanged and
+   would bite again if any HTML response were ever given `cacheEverything`.
+   (done: 2026-08-02)
+1. **Per-IP throttle on renders** — 20 cache *misses* per address per hour, then
+   429 with `Retry-After`. Only misses count: a miss is what pulls a contribution
+   graph from jogruber's free community API and renders a PNG, while a hit costs
+   bandwidth only and is already covered by the daily budget. So a README badge
+   or a Vivaldi widget — one miss per user per UTC day — never sees it; what it
+   stops is one address walking a list of usernames. Tunable via `RATE_MISSES` /
+   `RATE_WINDOW_S`; the IP table is bounded at 4096, evicting least-recently-seen.
+   The subtle part was *which* address: the worker→Render hop is a fresh request
+   whose `CF-Connecting-IP` we don't control, and had it collapsed to one value
+   every visitor would have shared a bucket and the service would 429 everyone —
+   worse than the abuse being prevented. The worker now forwards the visitor as
+   `X-Lenny-Client-IP` and the origin prefers it. Verified live: a bucket filled
+   at the origin under a forged IP kept 429-ing there, while the *same* forged
+   header sent through olekwrites.com came back 404 — the worker overwrites it,
+   so bucketing follows the real visitor and a forged header cannot poison
+   someone else's bucket. Badge, widget and landing page all unaffected
+   throughout. (done: 2026-08-02)
 1. **Vivaldi Dashboard widget shipped** — `<domain>/<name>/widget/vivaldi`
    (`?from=` supported), live at olekwrites.com/lenny/jaal/widget/vivaldi.
    Pointing a Webpage widget straight at the badge URL worked but gave
