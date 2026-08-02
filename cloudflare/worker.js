@@ -26,6 +26,14 @@ export default {
     let path = url.pathname.slice(PREFIX.length) || "/";
     if (!path.startsWith("/")) path = "/" + path;
     const upstream = new Request(UPSTREAM + path + url.search, request);
+    // Cloudflare sets CF-Connecting-IP on the request coming INTO this worker.
+    // The hop from here to Render is a separate request through Cloudflare's
+    // network, so what the origin sees in that header is not ours to rely on —
+    // and if it collapsed to one address, the origin's per-IP throttle would
+    // bucket every visitor together and start 429-ing everyone. Forward the
+    // real client explicitly instead, and let the origin prefer this header.
+    const clientIp = request.headers.get("CF-Connecting-IP");
+    if (clientIp) upstream.headers.set("X-Lenny-Client-IP", clientIp);
     // Edge-cache the badges only. cacheEverything on an HTML response makes
     // Cloudflare cache it, and once it does, the zone's Browser Cache TTL (4 h)
     // overwrites the origin's Cache-Control — so the app's `no-cache` on the

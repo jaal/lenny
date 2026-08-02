@@ -140,18 +140,22 @@ _misses: OrderedDict[str, list[float]] = OrderedDict()
 
 
 def _client_ip() -> str:
-    """Best-effort client address.
+    """Best-effort client address, most trustworthy source first.
 
-    CF-Connecting-IP is set by Cloudflare and is the real client on the
-    olekwrites.com path; X-Forwarded-For's first hop covers a direct Render
-    request. Both are forgeable by anyone talking straight to the Render URL,
-    and that is accepted: this is politeness towards an upstream we don't pay
-    for, not a security control. The bandwidth budget is the hard backstop.
+    X-Lenny-Client-IP is set by our own Worker from the CF-Connecting-IP it was
+    handed, and is the only one guaranteed to be the real visitor on the
+    olekwrites.com path: the worker→Render hop is a fresh request whose own
+    CF-Connecting-IP we do not control, and if that collapsed to a single
+    address every visitor would share one throttle bucket. The rest are
+    fallbacks for reaching the Render URL directly.
+
+    All three are forgeable by anyone talking straight to Render, and that is
+    accepted: this is politeness towards an upstream we don't pay for, not a
+    security control. The daily bandwidth budget is the hard backstop.
     """
-    if cf := request.headers.get("CF-Connecting-IP"):
-        return cf.strip()
-    if fwd := request.headers.get("X-Forwarded-For"):
-        return fwd.split(",")[0].strip()
+    for header in ("X-Lenny-Client-IP", "CF-Connecting-IP", "X-Forwarded-For"):
+        if value := request.headers.get(header):
+            return value.split(",")[0].strip()
     return request.remote_addr or "?"
 
 
