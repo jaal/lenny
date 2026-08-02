@@ -25,9 +25,9 @@
   - The page is NOT kept alive: Vivaldi closes it when the Dashboard closes and
     re-loads it on every open. Cold-start speed is the whole game — and this
     service naps on Render's free tier, where a cold badge takes ~30 s. Hence
-    paint-from-localStorage-first, refetch only when the UTC day has turned
-    (the origin caches a badge per user per UTC day, so a same-day refetch
-    would return the identical bytes anyway).
+    paint-from-localStorage-first, plus the fetch limits documented above
+    readCache(): one request a day in the normal case, a lease so overlapping
+    Dashboard opens cannot stack requests, and a cooldown after failures.
   - A plain left-click on target="_blank" is unreliable in a widget, so the
     click handler falls back to navigating the widget itself.
 
@@ -192,11 +192,50 @@ function paint(dataUrl, day, n) {
   $('note').textContent = day === utcDay() ? '' : 'as of ' + day;
 }
 
+/* ── how often this is allowed to hit the server ────────────────────────────
+   Vivaldi reloads the page on every Dashboard open, so a naive "fetch on load"
+   means one request per open — dozens a day, against a free-tier box that takes
+   ~30 s to wake up. Three rules hold it to roughly one request a day:
+
+   1. Badge in hand and same UTC day → never fetch. The origin computes one
+      badge per user per UTC day and then serves it frozen, so a same-day
+      refetch would return byte-identical bytes. This is the main saving.
+   2. Before fetching, claim a 2-minute lease on disk. Another Dashboard open is
+      a brand-new page with no memory of this one, so localStorage is the only
+      place it can learn a request is already in flight. Without this, opening
+      and closing the Dashboard while the server wakes starts a fresh 90 s
+      request every time.
+   3. A failure sets a cooldown sized to the reason: minutes for something
+      transient, hours for a username that does not exist (a typo will not fix
+      itself), and until UTC midnight when the origin says its daily bandwidth
+      budget is spent — which is exactly when it says it will be back.
+
+   All three live in the same localStorage entry as the badge, because they have
+   to survive the page being closed — which is the normal case here, not the
+   exception. */
+const LEASE_MS = 2 * 60 * 1000;
+const COOLDOWN_MS = {
+  offline: 5 * 60 * 1000,
+  error: 5 * 60 * 1000,
+  nouser: 6 * 60 * 60 * 1000,
+};
+function cooldownFor(why) {
+  if (why !== 'budget') return COOLDOWN_MS[why] || COOLDOWN_MS.error;
+  const n = new Date();   // the origin's own answer: back at UTC midnight
+  return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1) - n.getTime();
+}
+
 function readCache() {
-  try {
-    const c = JSON.parse(localStorage.getItem(KEY) || 'null');
-    return c && c.data && c.day ? c : null;
-  } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(KEY) || 'null') || null; }
+  catch { return null; }
+}
+
+// Entries carry both the badge and the fetch limits, and either half can be
+// written without the other — a cooldown must be recordable with no badge yet.
+function patchCache(patch) {
+  const entry = { ...(readCache() || {}), ...patch };
+  writeCache(entry);
+  return entry;
 }
 
 function writeCache(entry) {
@@ -214,20 +253,30 @@ function writeCache(entry) {
   }
 }
 
+function fail(why) {
+  patchCache({ nextTry: Date.now() + cooldownFor(why), why });
+  return { ok: false, why };
+}
+
 async function refresh() {
-  // 90 s: the fetch itself has to outlive a Render cold start, or it would
-  // abort exactly the request that ends one.
+  // The lease goes down BEFORE the request, not after: a Dashboard that is
+  // opened, closed and reopened during a cold start would otherwise pile up
+  // one 90 s request per open, and none of those pages can see each other.
+  patchCache({ nextTry: Date.now() + LEASE_MS, why: null });
+
+  // 90 s: the fetch has to outlive a Render cold start, or it would abort
+  // exactly the request that ends one.
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 90000);
   let r;
   try {
     r = await fetch(badgeUrl, { cache: 'no-store', signal: ctl.signal });
   } catch {
-    return { ok: false, why: 'offline' };
+    return fail('offline');
   } finally { clearTimeout(t); }
 
-  if (!r.ok) return { ok: false, why: r.status === 404 ? 'nouser'
-                                    : r.status === 429 ? 'budget' : 'error' };
+  if (!r.ok) return fail(r.status === 404 ? 'nouser'
+                       : r.status === 429 ? 'budget' : 'error');
   // Same origin, so every response header is readable: the count rides along
   // with the picture instead of costing a second request.
   const n = parseInt(r.headers.get('X-Lenny-Count'), 10);
@@ -238,8 +287,8 @@ async function refresh() {
     fr.onerror = rej;
     fr.readAsDataURL(blob);
   });
-  const entry = { day: utcDay(), data, n: isFinite(n) ? n : null };
-  writeCache(entry);
+  const entry = patchCache({ day: utcDay(), data, n: isFinite(n) ? n : null,
+                             at: Date.now(), nextTry: 0, why: null });
   paint(entry.data, entry.day, entry.n);
   return { ok: true };
 }
@@ -251,21 +300,33 @@ const FAIL = {
   error:  ["Couldn't draw the sign", 'Something went wrong on the way. Try again later.'],
 };
 
+// The single gate every fetch goes through, so the load path and the midnight
+// tick cannot disagree about when the server may be touched.
+function blockedReason(c) {
+  if (!c) return null;
+  if (c.nextTry && Date.now() < c.nextTry) return 'cooling';
+  if (c.data && c.day === utcDay()) return 'fresh';
+  return null;
+}
+
 let lastDay = utcDay();
 
 (async function load() {
   const cached = readCache();
-  if (cached) paint(cached.data, cached.day, cached.n);
+  if (cached && cached.data) paint(cached.data, cached.day, cached.n);
 
-  // The origin computes one badge per user per UTC day and serves it from cache
-  // for the rest of that day, so a same-day refetch would return identical
-  // bytes. Refetching only across the day boundary is both the polite call
-  // pattern and the correct one.
-  if (cached && cached.day === lastDay) return;
+  const blocked = blockedReason(cached);
+  if (blocked) {
+    // Nothing to show and not allowed to ask: say which, rather than sitting on
+    // "Drawing the sign…" forever. A live lease really is still drawing, so
+    // that default message is the right one to leave alone.
+    if (!(cached && cached.data) && cached.why) show(...FAIL[cached.why]);
+    return;
+  }
 
   const res = await refresh();
   if (res.ok) return;
-  if (cached) $('note').textContent = 'as of ' + cached.day;   // keep the old sign
+  if (cached && cached.data) $('note').textContent = 'as of ' + cached.day;
   else show(...FAIL[res.why]);
 })();
 
@@ -274,7 +335,7 @@ setInterval(() => {
   const d = utcDay();
   if (d === lastDay) return;
   lastDay = d;
-  refresh();
+  if (!blockedReason(readCache())) refresh();
 }, 300000);
 
 // A plain left-click on target="_blank" does not reliably open in a Vivaldi

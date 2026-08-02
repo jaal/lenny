@@ -152,7 +152,14 @@ jobs:
    Dashboard opens (Vivaldi reloads widget pages on every open, and the service
    naps on Render free) and refetches only once the UTC day has turned — which
    is also the only time the answer can change, since the origin freezes one
-   badge per user per UTC day. New `X-Lenny-Count` response header carries the
+   badge per user per UTC day. Two more limits sit behind that, because the day
+   gate only covers the happy path: a **2-minute lease** written to localStorage
+   *before* each fetch, so opening and closing the Dashboard during a cold start
+   starts one request instead of one per open (each page is a fresh JS context —
+   disk is the only place they can see each other), and a **failure cooldown**
+   sized to the reason — 5 min transient, 6 h for a username that does not
+   exist, until UTC midnight on a 429, which is what the origin itself promises.
+   New `X-Lenny-Count` response header carries the
    number so the title costs no second request; it survives the Cloudflare edge.
    Regular (~155px) crops the sign to fill the width, Tall (~380px) shows the
    whole picture plus a caption. Landing page gained a widget snippet and an
