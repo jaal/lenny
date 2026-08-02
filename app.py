@@ -18,6 +18,7 @@ import json
 import os
 import re
 import threading
+import time
 import urllib.request
 from collections import OrderedDict
 
@@ -126,6 +127,52 @@ def _cached_png(user: str, since: dt.date | None, today: dt.date,
     return number, png
 
 
+# Per-IP politeness guard. The expensive request is a cache MISS: it pulls a
+# contribution graph from jogruber's free community API and renders a PNG.
+# Cache hits cost only bandwidth, which the budget above already covers, so
+# hits are never throttled — a README badge, or a Vivaldi widget, costs one
+# miss per user per UTC day and is unaffected. What this stops is one address
+# walking a list of usernames.
+RATE_MISSES = int(os.environ.get("RATE_MISSES", "20"))
+RATE_WINDOW = int(os.environ.get("RATE_WINDOW_S", "3600"))
+RATE_MAX_IPS = 4096
+_misses: OrderedDict[str, list[float]] = OrderedDict()
+
+
+def _client_ip() -> str:
+    """Best-effort client address.
+
+    CF-Connecting-IP is set by Cloudflare and is the real client on the
+    olekwrites.com path; X-Forwarded-For's first hop covers a direct Render
+    request. Both are forgeable by anyone talking straight to the Render URL,
+    and that is accepted: this is politeness towards an upstream we don't pay
+    for, not a security control. The bandwidth budget is the hard backstop.
+    """
+    if cf := request.headers.get("CF-Connecting-IP"):
+        return cf.strip()
+    if fwd := request.headers.get("X-Forwarded-For"):
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or "?"
+
+
+def _rate_ok(ip: str) -> bool:
+    """May this address trigger another render? Records the attempt if so."""
+    now = time.monotonic()
+    cutoff = now - RATE_WINDOW
+    with _lock:
+        hits = [t for t in _misses.get(ip, ()) if t > cutoff]
+        allowed = len(hits) < RATE_MISSES
+        if allowed:
+            hits.append(now)
+        _misses[ip] = hits
+        _misses.move_to_end(ip)
+        # Bounded, so a flood of addresses can't grow this without limit; the
+        # evicted ones are the least recently seen.
+        while len(_misses) > RATE_MAX_IPS:
+            _misses.popitem(last=False)
+        return allowed
+
+
 def _since_arg() -> dt.date | None:
     """Parse ?from=YYYY-MM-DD; 400 on junk, clamped to GitHub's launch."""
     raw = request.args.get("from")
@@ -170,6 +217,13 @@ def image(name: str):
 
     raw_source = request.args.get("source", "")
     source = raw_source if raw_source in KNOWN_SOURCES else "direct"
+
+    # Only a miss is worth throttling — a hit never touches the upstream API.
+    with _lock:
+        miss = (name.lower(), since, now.date()) not in _cache
+    if miss and not _rate_ok(_client_ip()):
+        return Response("too many new badges from your address; try again later",
+                        status=429, headers={"Retry-After": str(RATE_WINDOW)})
 
     try:
         number, png = _cached_png(name, since, now.date(), source)
