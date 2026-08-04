@@ -265,7 +265,7 @@
 
     <figure class="preview" id="fig">
       <img id="img" alt="days without missing a commit">
-      <figcaption>It even updates itself — no cron, no tokens.</figcaption>
+      <figcaption id="cap">It even updates itself — no cron, no tokens.</figcaption>
     </figure>
 
     <div class="snippets section" id="sn">
@@ -339,6 +339,12 @@ f.addEventListener('submit', e => {
     btn.disabled = false;
     fig.style.display = 'block';
     sn.style.display = 'block';
+    // The demo is the one badge here with ?hand=prev on it — the feature is
+    // easier to show than to describe. Say so, otherwise the snippets below
+    // read as if they'd produce the picture above them.
+    document.getElementById('cap').textContent = wasAuto
+      ? 'It even updates itself — no cron, no tokens. This one adds ?hand=prev.'
+      : 'It even updates itself — no cron, no tokens.';
     document.getElementById('c-url').textContent = url;
     document.getElementById('c-md').textContent =
       `![days without missing a commit](${url})`;
@@ -356,7 +362,7 @@ f.addEventListener('submit', e => {
   // Cloudflare edge-caches it, so the badge shows instantly even when the
   // Render box is napping. Submits get ?t= — busts browser/edge cache on
   // retry and keeps a cached 404 from shadowing a valid re-attempt.
-  img.src = wasAuto ? url + '?source=demo'
+  img.src = wasAuto ? url + '?source=demo&hand=prev'
                     : url + '?t=' + Date.now() + '&source=submit';
 });
 
