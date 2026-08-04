@@ -9,11 +9,16 @@
   image is always current — no cron needed.
 - `?from=YYYY-MM-DD` switches from streak to "days with ≥ 1 commit since that
   date" (e.g. `/jaal?from=2026-05-27`).
+- `?hand=prev` puts yesterday's number on the card in Lenny's hand instead of
+  the meme's "0" — 70 on the sign, 69 in his hand. Works in either mode, and
+  in the widget. Costs no extra upstream call: both numbers come from the same
+  contribution graph.
 
 ## How it works
 - `counter.py` — fetches the contribution graph from the public mirror
-  (github-contributions-api.jogruber.de, no GitHub token), computes the
-  streak / windowed count, and draws the number + captions onto
+  (github-contributions-api.jogruber.de, no GitHub token) once per render into
+  a `Graph`, computes the streak / windowed count (for today, and for yesterday
+  in `?hand=prev`), and draws the numbers + captions onto
   `assets/lenny.png` with Pillow (bundled DejaVu Sans Bold, free license).
 - `app.py` — Flask: `/` landing page, `/<username>` PNG endpoint. Results are
   cached in-process per user per UTC day; `Cache-Control: max-age` is set to

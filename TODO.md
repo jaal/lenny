@@ -121,6 +121,19 @@ jobs:
 
 # Done
 
+1. **`?hand=prev`: the card in Lenny's hand shows yesterday's number.** Second
+   steering param after `?from=`, same shape (strict parse, 400 on junk, part of
+   the cache key, forwarded by the Vivaldi widget). Default is unchanged — the
+   meme's own "0" stays baked in. Yesterday's number is the real one, computed,
+   not `n - 1`: after a broken streak those differ (commits Mon–Wed, none Thu,
+   one Fri → the sign says 1, his hand says 3). Costs no extra call to jogruber's
+   API: `counter.Graph` now holds one user's fetched years for the span of a
+   render, so both days are counted off the same data. Drawing follows the
+   existing header-patch trick — a parallelogram of matched card-white over the
+   baked "0", digits rotated 15° to sit with the card's lean, clear of the
+   fingers on the bottom edge. Verified live on /jaal (70 on the sign, 69 in
+   hand) in both streak and `?from` modes, 1–4 digits. (done: 2026-08-04)
+
 1. **Stale HTML fixed for real, at the edge this time.** The zone's Browser
    Cache TTL (4 h) was rewriting the origin's `no-cache` on every HTML response
    to `max-age=14400`, so browsers kept the landing page and the widget page

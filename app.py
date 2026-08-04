@@ -3,6 +3,8 @@
   GET /            landing page (enter a GitHub URL/username)
   GET /<username>  PNG — current streak of days with >=1 commit
                    ?from=YYYY-MM-DD — days with >=1 commit since that date
+                   ?hand=prev — the card in Lenny's hand shows yesterday's
+                   number instead of the meme's "0"
   GET /<username>/widget/vivaldi
                    HTML — the badge as a Vivaldi Dashboard webpage widget
 
@@ -101,23 +103,32 @@ def _track(event: str, props: dict) -> None:
 KNOWN_SOURCES = {"demo", "submit", "keepwarm", "widget"}
 
 
+def _count(graph: counter.Graph, since: dt.date | None, day: dt.date) -> int:
+    """The number the badge shows on `day`, in whichever mode is in force."""
+    if since is None:
+        return counter.current_streak(graph.user, day, graph)
+    return counter.days_with_commits_since(graph.user, since, day, graph)
+
+
 def _cached_png(user: str, since: dt.date | None, today: dt.date,
-                source: str = "direct") -> tuple[int, bytes]:
+                source: str = "direct", hand: str = "zero") -> tuple[int, bytes]:
     """(number, PNG bytes) for one user-day, computed once and reused."""
-    key = (user.lower(), since, today)
+    key = (user.lower(), since, today, hand)
     with _lock:
         if key in _cache:
             _cache.move_to_end(key)
             return _cache[key]
-    if since is None:
-        number = counter.current_streak(user, today)
-    else:
-        number = counter.days_with_commits_since(user, since, today)
-    png = counter.render(number, since=since)
+    # One graph for both numbers: yesterday's costs no extra upstream call.
+    graph = counter.Graph(user)
+    number = _count(graph, since, today)
+    prev = (_count(graph, since, today - dt.timedelta(days=1))
+            if hand == "prev" else None)
+    png = counter.render(number, since=since, hand=prev)
     # Cache miss = a picture actually got generated (vs merely served).
     _track("lenny_image_generated", {
         "username": user.lower(),
         "mode": "from" if since else "streak",
+        "hand": hand,
         "source": source,
     })
     with _lock:
@@ -191,6 +202,19 @@ def _since_arg() -> dt.date | None:
     return max(since, dt.date(2008, 1, 1))
 
 
+def _hand_arg() -> str:
+    """Parse ?hand=zero|prev — what the card in Lenny's hand shows.
+
+    Rejected rather than silently defaulted: unlike ?source, this one is
+    visible in the picture, so a typo should say so instead of quietly
+    handing back the meme's "0".
+    """
+    hand = request.args.get("hand", "zero")
+    if hand not in ("zero", "prev"):
+        abort(400, "hand must be zero or prev")
+    return hand
+
+
 @app.route("/")
 def index():
     # no-cache: neither Cloudflare (cacheEverything honors origin headers)
@@ -209,6 +233,7 @@ def image(name: str):
         abort(404)
 
     since = _since_arg()
+    hand = _hand_arg()
 
     now = dt.datetime.utcnow()
     midnight = dt.datetime.combine(now.date() + dt.timedelta(days=1), dt.time())
@@ -224,13 +249,13 @@ def image(name: str):
 
     # Only a miss is worth throttling — a hit never touches the upstream API.
     with _lock:
-        miss = (name.lower(), since, now.date()) not in _cache
+        miss = (name.lower(), since, now.date(), hand) not in _cache
     if miss and not _rate_ok(_client_ip()):
         return Response("too many new badges from your address; try again later",
                         status=429, headers={"Retry-After": str(RATE_WINDOW)})
 
     try:
-        number, png = _cached_png(name, since, now.date(), source)
+        number, png = _cached_png(name, since, now.date(), source, hand)
     except counter.UnknownUser:
         abort(404, f"GitHub user '{name}' not found")
 
@@ -262,12 +287,13 @@ def widget_vivaldi(name: str):
     if not USERNAME_RE.match(name):
         abort(404)
     since = _since_arg()
+    hand = _hand_arg()
     # no-cache for the same reason as the landing page: the edge (and browsers)
     # must not hold widget HTML across a deploy. The badge inside it carries
     # its own long max-age.
     return Response(
         render_template("widget_vivaldi.html", username=name,
-                        since=since.isoformat() if since else None),
+                        since=since.isoformat() if since else None, hand=hand),
         headers={"Cache-Control": "no-cache"},
     )
 

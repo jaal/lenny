@@ -26,11 +26,21 @@ MAX_LOOKBACK_YEARS = 15
 
 INK = (24, 26, 34)        # near-black, matches the template lettering
 CARD_WHITE = (247, 247, 245)
+HAND_WHITE = (231, 253, 251)  # the hand card's white, sampled beside its "0"
 
 # Template geometry (px, on the 619x403 original).
 NUMBER_CARD = (64, 60, 152, 166)   # the top "0" card on the sign — we cover & redraw
 CAPTION_BOX = (305, 105, 604, 228) # blank white area right of Lenny's head
 CAPTION_BOX_FROM = (335, 106, 596, 210)  # tighter: clears Lenny's hair in ?from mode
+
+# The second card, the one in Lenny's hand. It leans with his arm, so the patch
+# over its baked-in "0" is a parallelogram along that lean, and the number is
+# rotated to match. Kept just big enough to swallow the "0": the rest of the
+# card keeps its own shading, and wider numbers simply draw over it.
+HAND_PATCH = ((50, 236), (110, 236), (129, 331), (69, 331))
+HAND_CENTER = (90, 284)
+HAND_TEXT = (66, 78)   # inner box the digits are fitted into, before rotation
+HAND_ANGLE = 15.0
 
 # ?from mode covers the "DAYS WITHOUT" lettering (y 48-95, measured) with a
 # stretched strip of clean sign texture, so the patch keeps the sign's real
@@ -60,39 +70,53 @@ def _fetch_year(user: str, year: int) -> dict[str, int]:
     return {c["date"]: c["count"] for c in data.get("contributions", [])}
 
 
-def current_streak(user: str, today: dt.date) -> int:
+class Graph:
+    """One user's contribution days, fetched a year at a time and remembered.
+
+    Short-lived on purpose: it exists for the span of a single render, so
+    counting the same user for two days (today and yesterday, for the card in
+    Lenny's hand) costs the upstream API one call per year, not two.
+    """
+
+    def __init__(self, user: str) -> None:
+        self.user = user
+        self._counts: dict[str, int] = {}
+        self._years: set[int] = set()
+
+    def on(self, day: dt.date) -> int:
+        """Contributions on one day."""
+        if day.year not in self._years:
+            self._counts.update(_fetch_year(self.user, day.year))
+            self._years.add(day.year)
+        return self._counts.get(day.isoformat(), 0)
+
+
+def current_streak(user: str, today: dt.date, graph: Graph | None = None) -> int:
     """Consecutive days with >=1 contribution, counting back from today.
 
     Today doesn't break the streak if it has no contributions yet — the day
     isn't over — so an empty today just shifts the walk to yesterday.
     """
-    counts = _fetch_year(user, today.year)
+    g = graph or Graph(user)
     day = today
-    if counts.get(day.isoformat(), 0) == 0:
+    if g.on(day) == 0:
         day -= dt.timedelta(days=1)
     streak = 0
-    fetched = {today.year}
-    while day.year > today.year - MAX_LOOKBACK_YEARS:
-        if day.year not in fetched:
-            counts.update(_fetch_year(user, day.year))
-            fetched.add(day.year)
-        if counts.get(day.isoformat(), 0) > 0:
-            streak += 1
-            day -= dt.timedelta(days=1)
-        else:
-            break
+    while day.year > today.year - MAX_LOOKBACK_YEARS and g.on(day) > 0:
+        streak += 1
+        day -= dt.timedelta(days=1)
     return streak
 
 
-def days_with_commits_since(user: str, start: dt.date, today: dt.date) -> int:
+def days_with_commits_since(user: str, start: dt.date, today: dt.date,
+                            graph: Graph | None = None) -> int:
     """Number of days in [start, today] with >=1 contribution."""
-    counts: dict[str, int] = {}
-    for year in range(start.year, today.year + 1):
-        counts.update(_fetch_year(user, year))
-    return sum(
-        1 for date, n in counts.items()
-        if start.isoformat() <= date <= today.isoformat() and n > 0
-    )
+    g = graph or Graph(user)
+    day, days = start, 0
+    while day <= today:
+        days += 1 if g.on(day) > 0 else 0
+        day += dt.timedelta(days=1)
+    return days
 
 
 def _fit_font(draw: ImageDraw.ImageDraw, text: str, max_w: int, max_h: int,
@@ -115,12 +139,14 @@ def _draw_centered(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int],
               text, font=font, fill=INK)
 
 
-def render(number: int, since: dt.date | None = None) -> bytes:
+def render(number: int, since: dt.date | None = None,
+           hand: int | None = None) -> bytes:
     """Render the Lenny sign as PNG bytes.
 
     Default (streak) mode keeps the template's "DAYS WITHOUT" and captions it
     "MISSING A COMMIT". In ?from mode the header is redrawn as "DAYS WITH"
-    and the caption states the window.
+    and the caption states the window. `hand` replaces the "0" on the card in
+    Lenny's hand; left None, the template's own "0" stays, as in the meme.
     """
     im = TEMPLATE.copy()
     draw = ImageDraw.Draw(im)
@@ -132,6 +158,18 @@ def render(number: int, since: dt.date | None = None) -> bytes:
     text = str(number)
     font = _fit_font(draw, text, card_w - 14, card_h - 14, 84)
     _draw_centered(draw, NUMBER_CARD, text, font)
+
+    if hand is not None:
+        draw.polygon(HAND_PATCH, fill=HAND_WHITE)
+        tw, th = HAND_TEXT
+        layer = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
+        ld = ImageDraw.Draw(layer)
+        hand_text = str(hand)
+        _draw_centered(ld, (0, 0, tw, th), hand_text,
+                       _fit_font(ld, hand_text, tw, th, 84))
+        layer = layer.rotate(HAND_ANGLE, expand=True, resample=Image.BICUBIC)
+        im.paste(layer, (HAND_CENTER[0] - layer.width // 2,
+                         HAND_CENTER[1] - layer.height // 2), layer)
 
     if since is None:
         caption_lines = ["MISSING", "A COMMIT"]

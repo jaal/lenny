@@ -147,6 +147,7 @@
 <script>
 const USER = {{ username|tojson }};
 const FROM = {{ since|tojson }};
+const HAND = {{ hand|tojson }};
 
 const $ = id => document.getElementById(id);
 const img = $('sign'), msg = $('msg');
@@ -155,10 +156,12 @@ const img = $('sign'), msg = $('msg');
 // alike: strip this page's own "/<user>/widget/vivaldi" tail to find the service.
 const base = location.pathname.replace(/\/[^/]+\/widget\/vivaldi\/?$/, '');
 const badgeUrl = location.origin + base + '/' + encodeURIComponent(USER) +
-                 '?source=widget' + (FROM ? '&from=' + encodeURIComponent(FROM) : '');
+                 '?source=widget' + (FROM ? '&from=' + encodeURIComponent(FROM) : '') +
+                 (HAND === 'prev' ? '&hand=prev' : '');
 $('home').href = location.origin + base + '/';
 
-const KEY = 'lenny_w_' + USER.toLowerCase() + '_' + (FROM || 'streak');
+const KEY = 'lenny_w_' + USER.toLowerCase() + '_' + (FROM || 'streak') +
+            (HAND === 'prev' ? '_prev' : '');
 const utcDay = () => new Date().toISOString().slice(0, 10);
 
 function show(head, body) {
